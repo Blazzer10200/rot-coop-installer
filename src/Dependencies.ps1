@@ -56,7 +56,18 @@ function Test-Dependencies {
             else {
                 $ver = ([regex]::Match((Get-Content (Join-Path $folder 'SubModule.xml') -Raw), '<Version\s*value\s*=\s*"([^"]+)"')).Groups[1].Value
                 $ver = $ver -replace '^v',''   # SubModule versions already carry a 'v'
-                $detail = "installed (v$ver)"
+                # STUB CHECK: ModReady/BetaDeps ships BetaDeps.*.dll stand-ins instead of the
+                # real BUTR libraries. They reach the main menu but (when built for a different
+                # game version) silently break campaign init -> the endless new-game loop.
+                $binDir = Join-Path $folder 'bin\Win64_Shipping_Client'
+                $isStub = (Test-Path (Join-Path $binDir 'BetaDeps.Foundation.dll')) -or (Test-Path (Join-Path $binDir 'BetaDeps.Harmony.dll'))
+                if ($isStub) {
+                    $state='STUB'
+                    $detail="installed (v$ver) but this is a ModReady/BetaDeps STUB, not the official BUTR library"
+                    $advice="Stubs reach the menu but can loop forever on a new campaign. Replace with the OFFICIAL $($d.Name) from $($d.Nexus) (extract its '$($d.Module)' folder over this one)."
+                } else {
+                    $detail = "installed (v$ver, official)"
+                }
             }
         }
 
@@ -74,8 +85,8 @@ function Show-Dependencies {
     process { foreach ($x in $Findings) { $all.Add($x) } }
     end {
     $Findings = $all
-    $icon=@{OK='[ OK ]';MISSING='[MISS]';INCOMPLETE='[PART]';BROKEN='[BAD ]'}
-    $col =@{OK='Green';MISSING='Red';INCOMPLETE='Yellow';BROKEN='Yellow'}
+    $icon=@{OK='[ OK ]';MISSING='[MISS]';INCOMPLETE='[PART]';BROKEN='[BAD ]';STUB='[STUB]'}
+    $col =@{OK='Green';MISSING='Red';INCOMPLETE='Yellow';BROKEN='Yellow';STUB='Red'}
     Write-Host ""
     Write-Host "  Checking your mod dependencies..." -ForegroundColor Cyan
     Write-Host "  (These are the helper mods ROT and co-op need to run.)" -ForegroundColor DarkGray
