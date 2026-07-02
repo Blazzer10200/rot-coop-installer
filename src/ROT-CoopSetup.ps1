@@ -21,6 +21,7 @@ $config = Join-Path (Split-Path $here -Parent) 'config\compat.json'
 . "$here\Dependencies.ps1"
 . "$here\Validate.ps1"
 . "$here\LoadOrder.ps1"
+. "$here\Preflight.ps1"
 . "$here\FixCrash.ps1"
 . "$here\ProgressReader.ps1"
 
@@ -63,16 +64,22 @@ function Invoke-Menu {
         Write-Host ""
         Write-Host "  What would you like to do?" -ForegroundColor White
         Write-Host ""
-        Write-Host "    1) Check my setup      (are all mods + dependencies correct?)"
-        Write-Host "    2) Fix common problems (crashes, load order, shader cache)"
-        Write-Host "    3) Watch the game load (friendly loading screen)"
-        Write-Host "    4) Show technical details"
+        Write-Host "    1) Ready to play?      (pre-launch check - run this before you start)"
+        Write-Host "    2) Check my setup      (are all mods + dependencies correct?)"
+        Write-Host "    3) Fix common problems (crashes, load order, shader cache)"
+        Write-Host "    4) Watch the game load (friendly loading screen)"
+        Write-Host "    5) Show technical details"
         Write-Host "    Q) Quit"
         Write-Host ""
         $c = (Read-Host "  Type a number and press Enter").Trim().ToUpper()
 
         switch ($c) {
             '1' {
+                $prof0 = if (Test-Path $config) { Get-CompatProfile -ConfigPath $config } else { $null }
+                Invoke-Preflight -Game $g -Prof $prof0 | Show-Preflight | Out-Null
+                Pause-Return
+            }
+            '2' {
                 Test-Dependencies -Game $g | Show-Dependencies
                 if (Test-Path $config) {
                     $prof = Get-CompatProfile -ConfigPath $config
@@ -82,7 +89,7 @@ function Invoke-Menu {
                 }
                 Pause-Return
             }
-            '2' {
+            '3' {
                 Write-Host ""
                 Write-Host "  Running repairs (a backup is made first)..." -ForegroundColor Cyan
                 $prof2 = if (Test-Path $config) { Get-CompatProfile -ConfigPath $config } else { $null }
@@ -91,10 +98,10 @@ function Invoke-Menu {
                 Write-Host "  Done. Try launching the game again." -ForegroundColor Green
                 Pause-Return
             }
-            '3' { Watch-BannerlordLoad }
-            '4' { $g | Format-List; Pause-Return }
+            '4' { Watch-BannerlordLoad }
+            '5' { $g | Format-List; Pause-Return }
             'Q' { Write-Host ""; return }
-            default { Write-Host "  Please type 1, 2, 3, 4, or Q." -ForegroundColor Yellow; Start-Sleep 1 }
+            default { Write-Host "  Please type 1, 2, 3, 4, 5, or Q." -ForegroundColor Yellow; Start-Sleep 1 }
         }
     }
 }
