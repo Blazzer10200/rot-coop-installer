@@ -24,6 +24,7 @@ $config = Join-Path (Split-Path $here -Parent) 'config\compat.json'
 . "$here\Preflight.ps1"
 . "$here\FixCrash.ps1"
 . "$here\ProgressReader.ps1"
+. "$here\Launch.ps1"
 
 function Show-Header {
     Write-Host ""
@@ -64,44 +65,44 @@ function Invoke-Menu {
         Write-Host ""
         Write-Host "  What would you like to do?" -ForegroundColor White
         Write-Host ""
-        Write-Host "    1) Ready to play?      (pre-launch check - run this before you start)"
-        Write-Host "    2) Check my setup      (are all mods + dependencies correct?)"
-        Write-Host "    3) Fix common problems (crashes, load order, shader cache)"
-        Write-Host "    4) Watch the game load (friendly loading screen)"
-        Write-Host "    5) Show technical details"
+        Write-Host "    1) PLAY                (check, launch, and track the load)" -ForegroundColor Green
+        Write-Host "    2) Ready to play?      (pre-launch check only)"
+        Write-Host "    3) Check my setup      (are all mods + dependencies correct?)"
+        Write-Host "    4) Fix common problems (crashes, load order, shader cache)"
+        Write-Host "    5) Watch the game load (friendly loading screen)"
+        Write-Host "    6) Show technical details"
         Write-Host "    Q) Quit"
         Write-Host ""
         $c = (Read-Host "  Type a number and press Enter").Trim().ToUpper()
+        $prof0 = if (Test-Path $config) { Get-CompatProfile -ConfigPath $config } else { $null }
 
         switch ($c) {
-            '1' {
-                $prof0 = if (Test-Path $config) { Get-CompatProfile -ConfigPath $config } else { $null }
+            '1' { Start-RotCoop -Game $g -Prof $prof0 }
+            '2' {
                 Invoke-Preflight -Game $g -Prof $prof0 | Show-Preflight | Out-Null
                 Pause-Return
             }
-            '2' {
+            '3' {
                 Test-Dependencies -Game $g | Show-Dependencies
-                if (Test-Path $config) {
-                    $prof = Get-CompatProfile -ConfigPath $config
+                if ($prof0) {
                     Write-Host ""
                     Write-Host "  Full install check:" -ForegroundColor Cyan
-                    Format-Findings -Findings (Test-RotInstall -Game $g -Prof $prof)
+                    Format-Findings -Findings (Test-RotInstall -Game $g -Prof $prof0)
                 }
                 Pause-Return
             }
-            '3' {
+            '4' {
                 Write-Host ""
                 Write-Host "  Running repairs (a backup is made first)..." -ForegroundColor Cyan
-                $prof2 = if (Test-Path $config) { Get-CompatProfile -ConfigPath $config } else { $null }
-                Repair-RotInstall -Game $g -Prof $prof2 | ForEach-Object { Write-Host "    - $_" -ForegroundColor Gray }
+                Repair-RotInstall -Game $g -Prof $prof0 | ForEach-Object { Write-Host "    - $_" -ForegroundColor Gray }
                 Write-Host ""
                 Write-Host "  Done. Try launching the game again." -ForegroundColor Green
                 Pause-Return
             }
-            '4' { Watch-BannerlordLoad }
-            '5' { $g | Format-List; Pause-Return }
+            '5' { Watch-BannerlordLoad }
+            '6' { $g | Format-List; Pause-Return }
             'Q' { Write-Host ""; return }
-            default { Write-Host "  Please type 1, 2, 3, 4, 5, or Q." -ForegroundColor Yellow; Start-Sleep 1 }
+            default { Write-Host "  Please type 1-6 or Q." -ForegroundColor Yellow; Start-Sleep 1 }
         }
     }
 }
@@ -113,7 +114,11 @@ function Pause-Return {
 }
 
 # --- entry ---
-if     ($Watch)    { Watch-BannerlordLoad }
-elseif ($FixCrash) { $g = Get-GameOrExplain; if ($g) { Repair-RotInstall -Game $g | ForEach-Object { Write-Host "  $_" } } }
-elseif ($Check)    { $g = Get-GameOrExplain; if ($g) { Test-Dependencies -Game $g | Show-Dependencies } }
-else               { Invoke-Menu }
+# Only run when this script is EXECUTED directly, not when dot-sourced/imported.
+# ($MyInvocation.InvocationName is '.' when dot-sourced.)
+if ($MyInvocation.InvocationName -ne '.') {
+    if     ($Watch)    { Watch-BannerlordLoad }
+    elseif ($FixCrash) { $g = Get-GameOrExplain; if ($g) { Repair-RotInstall -Game $g | ForEach-Object { Write-Host "  $_" } } }
+    elseif ($Check)    { $g = Get-GameOrExplain; if ($g) { Test-Dependencies -Game $g | Show-Dependencies } }
+    else               { Invoke-Menu }
+}
