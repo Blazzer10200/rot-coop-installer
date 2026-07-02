@@ -25,6 +25,7 @@ $config = Join-Path (Split-Path $here -Parent) 'config\compat.json'
 . "$here\FixCrash.ps1"
 . "$here\ProgressReader.ps1"
 . "$here\Launch.ps1"
+. "$here\CoopSync.ps1"
 
 function Show-Header {
     Write-Host ""
@@ -70,7 +71,8 @@ function Invoke-Menu {
         Write-Host "    3) Check my setup      (are all mods + dependencies correct?)"
         Write-Host "    4) Fix common problems (crashes, load order, shader cache)"
         Write-Host "    5) Watch the game load (friendly loading screen)"
-        Write-Host "    6) Show technical details"
+        Write-Host "    6) Co-op: match with a friend (export / compare setups)"
+        Write-Host "    7) Show technical details"
         Write-Host "    Q) Quit"
         Write-Host ""
         $c = (Read-Host "  Type a number and press Enter").Trim().ToUpper()
@@ -100,9 +102,23 @@ function Invoke-Menu {
                 Pause-Return
             }
             '5' { Watch-BannerlordLoad }
-            '6' { $g | Format-List; Pause-Return }
+            '6' {
+                Write-Host ""
+                Write-Host "  Co-op setup matching:" -ForegroundColor Cyan
+                Write-Host "    A) I'm the HOST - export my setup to share"
+                Write-Host "    B) Compare my setup to a friend's file"
+                Write-Host ""
+                $sub = (Read-Host "  Choose A or B").Trim().ToUpper()
+                if ($sub -eq 'A') { Export-CoopProfile -Game $g | Out-Null }
+                elseif ($sub -eq 'B') {
+                    $ff = (Read-Host "  Drag your friend's file here (or paste its path)").Trim('"',' ')
+                    Compare-CoopProfile -Game $g -FriendFile $ff
+                }
+                Pause-Return
+            }
+            '7' { $g | Format-List; Pause-Return }
             'Q' { Write-Host ""; return }
-            default { Write-Host "  Please type 1-6 or Q." -ForegroundColor Yellow; Start-Sleep 1 }
+            default { Write-Host "  Please type 1-7 or Q." -ForegroundColor Yellow; Start-Sleep 1 }
         }
     }
 }
