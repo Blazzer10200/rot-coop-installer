@@ -41,11 +41,23 @@ function Test-RotInstall {
     foreach ($modKey in $Prof.mods.PSObject.Properties.Name) {
         $allExpected += $Prof.mods.$modKey.modules
     }
+    # reverse map of moduleIdFixups: expectedId -> oldFolderName (e.g. ROT_Map -> ROT-Map)
+    $fixupReverse = @{}
+    if ($Prof.moduleIdFixups) {
+        foreach ($k in $Prof.moduleIdFixups.PSObject.Properties.Name) { $fixupReverse[$Prof.moduleIdFixups.$k] = $k }
+    }
+
     foreach ($m in ($allExpected | Where-Object { $_ })) {
         $folder = Join-Path $mods $m
         $xml    = Join-Path $folder 'SubModule.xml'
         if (-not (Test-Path $folder)) {
-            # is it under a wrapper (e.g. "ROT 7.1\<m>")?
+            # (a) is it still under its OLD folder name (e.g. ROT_Map expected, ROT-Map on disk)?
+            $oldName = $fixupReverse[$m]
+            if ($oldName -and (Test-Path (Join-Path $mods $oldName))) {
+                Add $m 'FIXABLE' "folder is '$oldName' but must be '$m' (its module Id) - rename it" 'auto'
+                continue
+            }
+            # (b) is it under a wrapper (e.g. "ROT 7.1\<m>")?
             $nested = Get-ChildItem $mods -Directory -ErrorAction SilentlyContinue |
                       ForEach-Object { Join-Path $_.FullName $m } | Where-Object { Test-Path $_ } | Select-Object -First 1
             if ($nested) { Add $m 'MISPLACED' "found nested under $(Split-Path (Split-Path $nested) -Leaf) - needs moving up" 'auto' }
@@ -54,8 +66,8 @@ function Test-RotInstall {
         }
         if (-not (Test-Path $xml)) { Add $m 'WARN' 'folder present but no SubModule.xml' 'manual'; continue }
         $id = Get-ModuleId $xml
-        $expectedId = if ($Prof.moduleIdFixups.PSObject.Properties.Name -contains $m) { $Prof.moduleIdFixups.$m } else { $m }
-        if ($id -ne $m -and $id -eq $expectedId) {
+        # folder name should equal the module's internal Id
+        if ($id -and $id -ne $m) {
             Add $m 'FIXABLE' "folder '$m' but internal Id '$id' - rename folder to '$id'" 'auto'
         } else {
             Add $m 'OK' "Id=$id" 'none'

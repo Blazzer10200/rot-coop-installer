@@ -39,6 +39,20 @@ function Invoke-Preflight {
     $rot = @('ROT-Core','ROT-Content','ROT_Map','ROT-Dragon') | Where-Object { Test-Path (Join-Path $Game.ModulesPath "$_\SubModule.xml") }
     Chk 'Realm of Thrones installed' ($rot.Count -ge 3) $(if($rot.Count -ge 3){"$($rot.Count)/4 ROT modules"}else{"only $($rot.Count)/4 ROT modules found"})
 
+    # 6b) ROT string XML clean? Duplicate <string id> in the GameText files causes the
+    #     silent infinite "Initializing new game" loop. Catch it BEFORE launch, not after
+    #     20 wasted minutes. (Only checks the two files known to be fatal; cheap scan.)
+    $gtFiles = @(
+        (Join-Path $Game.ModulesPath 'ROT-Content\ModuleData\comment_strings.xml'),
+        (Join-Path $Game.ModulesPath 'ROT-Content\ModuleData\ROT_module_strings.xml')
+    ) | Where-Object { Test-Path $_ }
+    $dupTotal = 0
+    foreach ($gf in $gtFiles) {
+        $ids = [regex]::Matches([System.IO.File]::ReadAllText($gf), '<string\s+id\s*=\s*"([^"]+)"') | ForEach-Object { $_.Groups[1].Value }
+        $dupTotal += @($ids | Group-Object | Where-Object { $_.Count -gt 1 }).Count
+    }
+    Chk 'ROT text files valid' ($dupTotal -eq 0) $(if($dupTotal -eq 0){'no duplicate keys (good)'}else{"$dupTotal duplicate key(s) - WILL cause the endless loading loop; run Fix (option 4)"})
+
     # 7) Co-op mod present
     $bt = Test-Path (Join-Path $Game.ModulesPath 'BannerlordTogether\bin\Win64_Shipping_Client\BannerlordTogether.dll')
     Chk 'Co-op mod installed' $bt $(if($bt){'present'}else{'BannerlordTogether.dll missing from its bin folder'})

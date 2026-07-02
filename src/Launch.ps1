@@ -16,7 +16,7 @@ function Start-RotCoop {
         $result = Invoke-Preflight -Game $Game -Prof $Prof | Show-Preflight
         if (-not $result.Go) {
             Write-Host "  Not launching. Fix the [STOP] items above, then try again." -ForegroundColor Yellow
-            Write-Host "  (Tip: menu option 3 auto-fixes most problems.)" -ForegroundColor DarkGray
+            Write-Host "  (Tip: menu option 4, 'Fix common problems', auto-fixes most of these.)" -ForegroundColor DarkGray
             return
         }
     }

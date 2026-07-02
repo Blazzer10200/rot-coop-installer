@@ -18,7 +18,9 @@ function Watch-BannerlordLoad {
         [int]    $MaxMinutes = 45,
         # Typical total 'open/load' operations for a first ROT new-game (used to scale the bar).
         # Learned from real loads; the bar self-corrects if the real total exceeds it.
-        [int]    $ExpectedOps = 260000
+        [int]    $ExpectedOps = 260000,
+        # How many "Initializing new game begin" lines = the infinite-loop bug (not normal gen).
+        [int]    $LoopBugThreshold = 10
     )
 
     $phaseWords = @(
@@ -126,9 +128,26 @@ function Watch-BannerlordLoad {
         # infinite-loop bug: duplicate keys in ROT's string XML abort string-table
         # loading, so init retries forever and never reaches the map. We must NOT paint
         # that as "almost done" (the trap that makes people wait an hour for nothing).
-        # We scan the WHOLE log for this, not just the tail, so the count is real.
-        $initCount = if ($main) { ([regex]::Matches((Get-Content $main.FullName -Raw -ErrorAction SilentlyContinue),'Initializing new game begin')).Count } else { 0 }
-        $initLoopBug = $initCount -ge 10
+        #
+        # PERF: a looping log grows to 100+ MB. We must NOT slurp the whole file every
+        # second. Instead we scan with a streaming reader and STOP early once we've seen
+        # enough hits to call it a loop (threshold+ a small margin). Normal loads have
+        # only a handful of these lines, so a clean load scans cheaply to EOF.
+        $initCount = 0
+        if ($main) {
+            try {
+                $sr = [System.IO.StreamReader]::new($main.FullName)
+                try {
+                    while (($line = $sr.ReadLine()) -ne $null) {
+                        if ($line.Contains('Initializing new game begin')) {
+                            $initCount++
+                            if ($initCount -ge $LoopBugThreshold) { break }  # seen enough; stop reading
+                        }
+                    }
+                } finally { $sr.Dispose() }
+            } catch { $initCount = 0 }  # locked/mid-write - just skip this tick
+        }
+        $initLoopBug = $initCount -ge $LoopBugThreshold
 
         # size-based percent, scaled to expected total; ratchet upward only
         $rawPct = if ($ExpectedOps -gt 0) { [int]([math]::Min(99, ($len/1KB) / ($ExpectedOps/1KB) * 100)) } else { 0 }
