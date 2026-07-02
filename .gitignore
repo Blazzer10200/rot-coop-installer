@@ -1,0 +1,23 @@
+# Build / packaging output
+dist/
+build/
+*.exe
+
+# Local backups the tool creates at runtime (never commit)
+_rot_installer_backup/
+_*_backup/
+
+# User-specific / runtime
+*.log
+*.tmp
+*.user
+
+# OS noise
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Editor
+.vs/
+.vscode/
+*.swp

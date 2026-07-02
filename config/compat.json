@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "updated": "2026-07-02",
+  "profiles": [
+    {
+      "id": "rot71-coop",
+      "name": "Realm of Thrones 7.1 + Bannerlord Together (Co-op)",
+      "gameVersion": "1.3.15.110062",
+      "gameVersionShort": "1.3.15",
+      "warSails": false,
+      "notes": "The verified-working GoT co-op stack. ROT 7.1 = newest non-Warsails 1.3.15 build.",
+      "mods": {
+        "ROT": {
+          "version": "7.1",
+          "modules": ["ROT-Core", "ROT-Content", "ROT_Map", "ROT-Dragon"],
+          "source": "https://www.nexusmods.com/mountandblade2bannerlord/mods/2907",
+          "altSource": "https://www.moddb.com/mods/realm-of-thrones/downloads",
+          "install": "manual-extract",
+          "notes": "Use the 'ROT 7.1 for Bannerlord 1.3.15' file. NOT 8.0 Warsails. Extract w/ 7-Zip. Folder ROT-Map must be renamed to ROT_Map (its internal Id)."
+        },
+        "BannerlordTogether": {
+          "version": "0.4.1",
+          "modules": ["BannerlordTogether"],
+          "source": "https://www.nexusmods.com/mountandblade2bannerlord/mods/10426",
+          "install": "extract-to-modules"
+        },
+        "BLSE": {
+          "version": "1.6.7",
+          "minVersion": "1.6.0",
+          "source": "https://www.nexusmods.com/mountandblade2bannerlord/mods/1",
+          "install": "extract-to-gameroot"
+        },
+        "deps": {
+          "bundle": "ModReady",
+          "version": "1.0.5",
+          "modules": ["Bannerlord.Harmony", "Bannerlord.UIExtenderEx", "Bannerlord.ButterLib", "Bannerlord.MBOptionScreen"],
+          "source": "https://www.nexusmods.com/mountandblade2bannerlord/mods/11274",
+          "install": "extract-to-gameroot",
+          "WARNING": "DO NOT replace with official BUTR deps. Official ButterLib requires BLSE.AssemblyResolver and crashes pre-logging. ModReady stubs reach the menu (verified: 372 patches, 0 failed)."
+        }
+      },
+      "loadOrder": [
+        "Native", "SandBoxCore", "Sandbox", "StoryMode", "CustomBattle",
+        "Bannerlord.Harmony", "Bannerlord.UIExtenderEx", "Bannerlord.ButterLib", "Bannerlord.MBOptionScreen",
+        "ROT-Core", "ROT-Content", "ROT_Map", "ROT-Dragon",
+        "BannerlordTogether"
+      ],
+      "moduleIdFixups": { "ROT-Map": "ROT_Map" }
+    }
+  ],
+  "knownCrashes": [
+    {
+      "signature": "Shader cache version of the external module (ROT-Content) is invalid",
+      "exception": "0xC0000005",
+      "cause": "Mismatched/corrupt precompiled shader cache (.sack)",
+      "fix": "delete-shader-caches"
+    },
+    {
+      "signature": "Unable to initialize Steam API",
+      "cause": "Steam not running or not logged in",
+      "fix": "start-steam-first"
+    }
+  ],
+  "shaderCachePaths": [
+    "{MODULES}\\ROT-Content\\Shaders\\D3D11\\compressed_shader_cache.sack",
+    "{MODULES}\\ROT_Map\\Shaders\\D3D11\\compressed_shader_cache.sack",
+    "{PROGRAMDATA}\\Mount and Blade II Bannerlord\\Shaders"
+  ]
+}
