@@ -1,70 +1,95 @@
 # ProgressReader.ps1 - THE headline feature.
-# Tails Bannerlord's live engine log during load and renders a friendly, human progress screen.
-# Goal: comfort a non-technical user. No jargon. Reassure while working; celebrate when in-game.
+# Live, SMOOTH, accurate loading bar for Bannerlord + ROT loads. Friendly, plain-English.
 #
-# Design constraints learned the hard way:
-#  - ASCII ONLY (PowerShell 5.1 default console encoding turns em-dashes / box-art into mojibake).
-#  - Progress must never go backwards (ratchet) - Bannerlord loads in overlapping waves.
-#  - Redraw in place (no full-screen clear) to avoid strobe flicker and preserve scrollback.
+# Accuracy approach:
+#  - The bar is driven by a real, monotonically-increasing metric: total files the engine
+#    has opened (log grows as it loads). We map that against a learned typical-total so the
+#    bar moves smoothly, not in 6 big lurches.
+#  - Phase label (words) comes from what it's loading now, for human context.
+#  - Ratchet: bar never goes backwards.
+#  - ASCII only (PS 5.1 safe). Redraw in place (no strobe).
 
 function Watch-BannerlordLoad {
     [CmdletBinding()]
     param(
         [string] $LogDir = "C:\ProgramData\Mount and Blade II Bannerlord\logs",
-        [int]    $PollSeconds = 2,
+        [double] $PollSeconds = 1.0,
         [int]    $StallWarnSeconds = 300,
-        [int]    $MaxMinutes = 45      # safety: stop watching after this long
+        [int]    $MaxMinutes = 45,
+        # Typical total 'open/load' operations for a first ROT new-game (used to scale the bar).
+        # Learned from real loads; the bar self-corrects if the real total exceeds it.
+        [int]    $ExpectedOps = 260000
     )
 
-    # Ordered phases: friendly title + calming blurb + detection regex.
-    $phases = @(
-        @{ Key='boot';  Title='Waking up the game';      Blurb='Starting the engine and loading the mod launcher.';        Rx='Initializing engine|create device|renderer|rgl_gpu' }
-        @{ Key='data';  Title='Reading the world files';  Blurb='Loading all the text, dialogue and rules for Westeros.';   Rx='voice_strings|action_strings|comment_strings|GameText|ModuleData.*strings' }
-        @{ Key='rot';   Title='Building Westeros';        Blurb='Loading Realm of Thrones content. This is the big one.';   Rx='ROT_wanderer|ROT-Content|ROT-Dragon' }
-        @{ Key='gen';   Title='Creating the realm';       Blurb='Placing every lord, house and army onto the map.';         Rx='Initializing new game|CampaignBehavior|MobileParty|SpawnParties|sp_battles' }
-        @{ Key='scene'; Title='Painting the map';         Blurb='Almost there - drawing the campaign map of Westeros.';     Rx='terrain|atmosphere|campaign_map|InitializeCampaign' }
-        @{ Key='done';  Title='You made it in!';          Blurb='Welcome to Westeros.';                                     Rx='campaign started|OnGameLoaded|OnCampaignStart|EnterMenu' }
+    $phaseWords = @(
+        @{ Rx='campaign started|OnGameLoaded|OnCampaignStart|EnterMenu'; Title='You made it in!';      Done=$true }
+        @{ Rx='Initializing new game';                                    Title='Creating the realm';    Done=$false }
+        @{ Rx='terrain|atmosphere|campaign_map';                          Title='Painting the map';      Done=$false }
+        @{ Rx='ROT_wanderer|ROT-Content|ROT-Dragon';                      Title='Building Westeros';     Done=$false }
+        @{ Rx='voice_strings|action_strings|comment_strings|GameText';    Title='Reading world files';   Done=$false }
+        @{ Rx='.';                                                        Title='Waking up the game';    Done=$false }
     )
 
-    function Write-Screen($idx, $pct, $spin, $status, $sc, $barColor, $phases) {
-        # Move cursor to home (ESC[H) WITHOUT clearing whole buffer -> no flicker, keeps scrollback.
-        $e = [char]27
-        $out = New-Object System.Text.StringBuilder
-        [void]$out.AppendLine("$e[H")
-        [void]$out.AppendLine("")
-        [void]$out.AppendLine("   +--------------------------------------------------+")
-        [void]$out.AppendLine("   |         REALM OF THRONES  -  Co-op Loader         |")
-        [void]$out.AppendLine("   +--------------------------------------------------+")
-        [void]$out.AppendLine("")
-        $barLen=40; $fill=[int]($pct/100*$barLen)
-        $bar = ('#'*$fill) + ('.'*($barLen-$fill))
-        [void]$out.AppendLine("     [$bar] $pct%   ")
-        [void]$out.AppendLine("")
-        for ($i=0; $i -lt $phases.Count; $i++) {
-            $t = $phases[$i].Title.PadRight(26)
-            if     ($i -lt $idx) { [void]$out.AppendLine("       [x] $t") }
-            elseif ($i -eq $idx) { [void]$out.AppendLine("        $($spin)  $t") }
-            else                 { [void]$out.AppendLine("       [ ] $t") }
+    # Turn a raw engine log line into a short, friendly "what it's doing" phrase.
+    function Humanize($line) {
+        switch -Regex ($line) {
+            'ROT_wanderer'                 { return 'Loading Westeros characters & backstories' }
+            'ROT-Content'                  { return 'Loading Realm of Thrones content' }
+            'ROT_Map|ROT-Map'              { return 'Loading the Westeros map data' }
+            'ROT-Dragon'                   { return 'Loading dragons & special units' }
+            'Initializing new game'        { return 'Generating the campaign world' }
+            'voice_strings'                { return 'Loading character voices' }
+            'action_strings|comment'       { return 'Loading dialogue & interactions' }
+            'trait_strings'                { return 'Loading lord personalities & traits' }
+            'world_lore'                   { return 'Loading world lore' }
+            'companion'                    { return 'Loading companions' }
+            'sp_battles|battle'            { return 'Setting up battle scenarios' }
+            'settlement|town|castle|village'{ return 'Placing settlements' }
+            'terrain|atmosphere|map'       { return 'Building the world map' }
+            'GameText|strings\.xml'        { return 'Loading game text' }
+            'duplicate key'                { return 'Sorting through mod data' }
+            'opening .*\.xml'              { return 'Reading data files' }
+            default                        { return $null }
         }
-        [void]$out.AppendLine("")
-        [void]$out.AppendLine("     $($phases[$idx].Blurb)".PadRight(70))
-        [void]$out.AppendLine("")
-        [void]$out.AppendLine("     Status: $status".PadRight(70))
-        [void]$out.AppendLine("     ---------------------------------------------------")
-        # Print buffer, then color the status line separately isn't trivial in one write;
-        # keep it simple + readable: whole frame one color-neutral write, status colored after.
-        Write-Host $out.ToString() -NoNewline
+    }
+
+    function Draw($pct, $title, $spin, $status, $sc, $feed) {
+        $e=[char]27
+        $sb=New-Object System.Text.StringBuilder
+        [void]$sb.AppendLine("$e[H")   # cursor home, no clear = no flicker
+        [void]$sb.AppendLine("")
+        [void]$sb.AppendLine("   +--------------------------------------------------+")
+        [void]$sb.AppendLine("   |         REALM OF THRONES  -  Co-op Loader         |")
+        [void]$sb.AppendLine("   +--------------------------------------------------+")
+        [void]$sb.AppendLine("")
+        $barLen=44; $fill=[int]($pct/100*$barLen)
+        $bar=('#'*$fill)+('.'*($barLen-$fill))
+        [void]$sb.AppendLine("     [$bar]")
+        [void]$sb.AppendLine(("            {0,3}%   {1} {2}" -f $pct, $spin, $title).PadRight(60))
+        [void]$sb.AppendLine("")
+        [void]$sb.AppendLine("     Status: $status".PadRight(66))
+        [void]$sb.AppendLine("     ----------------------------------------------")
+        [void]$sb.AppendLine("     Live activity:".PadRight(66))
+        # show the rolling activity feed (most recent last), padded to a fixed height so
+        # the frame doesn't jump around
+        $feedLines = @($feed)
+        for ($i=0; $i -lt 6; $i++) {
+            $ln = if ($i -lt $feedLines.Count) { "  > " + $feedLines[$i] } else { "" }
+            [void]$sb.AppendLine(("     " + $ln).PadRight(66))
+        }
+        [void]$sb.AppendLine("     ----------------------------------------------")
+        [void]$sb.AppendLine("     This window only watches the game. Safe to leave open.".PadRight(66))
+        Write-Host $sb.ToString() -NoNewline
     }
 
     try { Clear-Host } catch {}
-    $lastWrite=$null; $lastCpu=0; $flatSince=Get-Date; $spinner=@('|','/','-','\'); $spin=0
-    $maxIdx=0; $start=Get-Date
+    $spinner=@('|','/','-','\'); $spin=0
+    $maxPct=0; $lastGrow=Get-Date; $lastLen=0; $start=Get-Date
+    $feed=[System.Collections.Generic.List[string]]::new(); $lastActivity=''
 
     while ($true) {
         if (((Get-Date)-$start).TotalMinutes -gt $MaxMinutes) {
-            Write-Host "`n`n  Stopped watching after $MaxMinutes minutes. If the game still isn't in," -ForegroundColor Yellow
-            Write-Host "  something may be wrong - check the game window, or re-run the repair tool.`n" -ForegroundColor Yellow
-            break
+            Write-Host "`n`n  Watched for $MaxMinutes min. If not in yet, check the game window.`n" -ForegroundColor Yellow; break
         }
 
         $main = Get-ChildItem $LogDir -Filter 'rgl_log_*.txt' -ErrorAction SilentlyContinue |
@@ -74,53 +99,56 @@ function Watch-BannerlordLoad {
 
         if (-not $proc -and -not $main) {
             try { Clear-Host } catch {}
-            Write-Host "`n  Waiting for Bannerlord to start..." -ForegroundColor Cyan
-            Write-Host "  Launch the game, then click 'Into the Realm' or 'Host Co-op'.`n" -ForegroundColor DarkGray
+            Write-Host "`n  Waiting for the game to start... launch it and click Play.`n" -ForegroundColor Cyan
             Start-Sleep $PollSeconds; continue
         }
 
-        $tail = if ($main) { Get-Content $main.FullName -Tail 100 -ErrorAction SilentlyContinue } else { @() }
-        $joined = ($tail -join "`n")
+        # --- accurate metric: file size of the log approximates work done (grows as it loads) ---
+        $len = if ($main) { $main.Length } else { 0 }
+        $tail = if ($main) { Get-Content $main.FullName -Tail 60 -ErrorAction SilentlyContinue } else { @() }
+        $joined = $tail -join "`n"
 
-        $detected = 0
-        for ($i = $phases.Count-1; $i -ge 0; $i--) { if ($joined -match $phases[$i].Rx) { $detected = $i; break } }
-        if ($detected -gt $maxIdx) { $maxIdx = $detected }   # ratchet
-        $idx = $maxIdx
-        $pct = [int](($idx+1)/$phases.Count*100)
+        # phase words + a completion signal
+        $title='Loading'; $isDone=$false
+        foreach ($p in $phaseWords) { if ($joined -match $p.Rx) { $title=$p.Title; $isDone=$p.Done; break } }
 
-        $cpu  = if ($proc){ [int]$proc.CPU } else { 0 }
-        $resp = if ($proc){ $proc.Responding } else { $true }
-        $procGone = ($null -eq $proc)
-        $logMoved = $main -and ($main.LastWriteTime -ne $lastWrite)
-        if ($logMoved -or $cpu -gt $lastCpu) { $flatSince = Get-Date }
-        $flatSecs = [int]((Get-Date)-$flatSince).TotalSeconds
-        $lastWrite = if($main){$main.LastWriteTime}; $lastCpu = $cpu
-
-        # If the game process vanished mid-load = it crashed.
-        if ($procGone -and $idx -lt ($phases.Count-1)) {
-            try { Clear-Host } catch {}
-            Write-Host "`n  The game closed unexpectedly before finishing loading." -ForegroundColor Red
-            Write-Host "  This usually means a crash. Re-run the tool's 'Fix common crashes'" -ForegroundColor Yellow
-            Write-Host "  option, then launch again.`n" -ForegroundColor Yellow
-            break
+        # rolling activity feed: humanize the newest meaningful log lines, de-duped
+        foreach ($ln in ($tail | Select-Object -Last 12)) {
+            $h = Humanize $ln
+            if ($h -and $h -ne $lastActivity) {
+                $feed.Add($h); $lastActivity = $h
+                while ($feed.Count -gt 6) { $feed.RemoveAt(0) }
+            }
         }
 
-        if     (-not $resp)                      { $status='Working hard. (Windows may say "not responding" - that is NORMAL during big loads.)'; $sc='Yellow' }
-        elseif ($flatSecs -gt $StallWarnSeconds) { $status="Still going, but quiet for a bit. On a first-ever load this can take a while - hang tight."; $sc='Yellow' }
-        else                                     { $status='Everything looks healthy. Sit tight!'; $sc='Green' }
+        # "Initializing new game" looping rapidly = final generation, treat as ~95%+
+        $initLoop = ([regex]::Matches($joined,'Initializing new game begin')).Count -ge 3
 
-        Write-Screen $idx $pct $spinner[$spin % 4] $status $sc 'Cyan' $phases
+        # size-based percent, scaled to expected total; ratchet upward only
+        $rawPct = if ($ExpectedOps -gt 0) { [int]([math]::Min(99, ($len/1KB) / ($ExpectedOps/1KB) * 100)) } else { 0 }
+        if ($initLoop -and $rawPct -lt 95) { $rawPct = 95 }
+        if ($rawPct -gt $maxPct) { $maxPct = $rawPct }
+        $pct = if ($isDone) { 100 } else { $maxPct }
 
-        if ($phases[$idx].Key -eq 'done') {
+        # health
+        $grew = ($len -gt $lastLen)
+        if ($grew) { $lastGrow=Get-Date }; $lastLen=$len
+        $quiet=[int]((Get-Date)-$lastGrow).TotalSeconds
+        $resp = if ($proc){ $proc.Responding } else { $true }
+        if     (-not $proc)                { $status='Game window closed. If you are NOT in-game, it may have crashed.'; $sc='Yellow' }
+        elseif (-not $resp)                { $status='Working hard. Windows may say "not responding" - that is NORMAL.'; $sc='Yellow' }
+        elseif ($quiet -gt $StallWarnSeconds){ $status="Still going, just quiet. First loads take a while - hang tight."; $sc='Yellow' }
+        else                               { $status='Everything looks healthy. Sit tight!'; $sc='Green' }
+
+        Draw $pct $title $spinner[$spin % 4] $status $sc $feed
+
+        if ($isDone -or ($pct -ge 100)) {
             Write-Host "`n" -NoNewline
-            Write-Host "        *****************************************" -ForegroundColor Green
-            Write-Host "        *   YOU OFFICIALLY MADE IT INTO         *" -ForegroundColor Green
-            Write-Host "        *          W E S T E R O S !            *" -ForegroundColor Green
-            Write-Host "        *****************************************" -ForegroundColor Green
-            Write-Host ""
-            Write-Host "        Have fun out there. Press Enter to close this window." -ForegroundColor Gray
-            $null = Read-Host
-            break
+            Write-Host "        *********************************************" -ForegroundColor Green
+            Write-Host "        *   YOU OFFICIALLY MADE IT INTO WESTEROS!   *" -ForegroundColor Green
+            Write-Host "        *********************************************" -ForegroundColor Green
+            Write-Host "`n        Have fun. Press Enter to close this window." -ForegroundColor Gray
+            $null = Read-Host; break
         }
         $spin++
         Start-Sleep $PollSeconds

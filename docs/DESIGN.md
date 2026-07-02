@@ -86,9 +86,34 @@ Tail `C:\ProgramData\Mount and Blade II Bannerlord\logs\rgl_log_*.txt` during lo
 (data-load → world-gen → map) to a text progress bar. Solves the "black screen, no progress" pain directly.
 
 ## Build order
-1. v1 console script (DETECT→FIXCRASH proven; reuse tonight's PowerShell verbatim)
-2. compat.json + validation table
-3. Progress-reader
-4. v1.5 friend-sync export/import
-5. v2 WPF GUI wrapper
-6. Distribute as Nexus tool + GitHub (open-source builds trust for a "runs .exe on your game" tool)
+1. [DONE] v1 console script (Detect / Validate / Dependencies / FixCrash / LoadOrder)
+2. [DONE] compat.json + validation table
+3. [DONE] Progress-reader (smooth bar + live humanized activity log)
+4. [DONE] Preflight GO/NO-GO gate + one-click PLAY (launch + watch)
+5. [DONE] Friend-sync export/compare
+6. [DONE] Published to GitHub (Blazzer10200/rot-coop-installer, MIT)
+7. [TODO] Guided install flow (point at archives -> auto-place)
+8. [TODO] Package as single .exe (ps2exe)
+9. [TODO] v2 WPF GUI wrapper
+
+## Implemented modules (v1, all tested against a real install)
+- Detect.ps1        - Steam-library-aware install/version/War Sails detection
+- Dependencies.ps1  - deep check (folder + manifest + DLL-in-bin + version) w/ guided fixes
+- Validate.ps1      - full install diagnose table
+- LoadOrder.ps1     - writes correct dependency-safe LauncherData.xml (fixes rescramble)
+- Preflight.ps1     - GO/NO-GO pre-launch gate
+- FixCrash.ps1      - shader-cache clear, load-order reset, marker clear, Steam check
+- ProgressReader.ps1- live loading screen: smooth bar + rolling humanized activity feed
+- Launch.ps1        - one-click PLAY: preflight -> BLSE launch -> watch
+- CoopSync.ps1      - export/compare setup fingerprints between co-op partners
+- ROT-CoopSetup.ps1 - menu entry point (guarded so importing doesn't auto-run)
+
+## Engineering notes / gotchas baked in
+- ASCII-only output (PS 5.1 console encoding mangles em-dashes / box-art into mojibake).
+- Progress bar ratchets forward only (Bannerlord loads in overlapping waves; raw phase
+  detection would jump backwards and scare users).
+- Bar is size-driven for smoothness; "Initializing new game" loop => treat as ~95%+.
+- Entry point guarded via $MyInvocation.InvocationName so dot-sourcing imports functions
+  without launching the menu.
+- $Profile is a reserved automatic var - profile params are named $Prof.
+- Version strings carry a leading 'v'; Format-Ver normalizes to avoid 'vv2.10' display bugs.

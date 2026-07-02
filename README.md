@@ -1,80 +1,100 @@
 # ROT Co-op Setup Tool
 
-A Windows helper for installing and repairing **Realm of Thrones 7.1 + Bannerlord Together (co-op)**
-on Mount & Blade II: Bannerlord. It automates the fiddly, crash-prone setup that normally takes hours
-of guesswork — and includes a **live loading-progress reader** so you never stare at a black screen
+A Windows helper for installing, repairing, and **launching** the
+**Realm of Thrones 7.1 + Bannerlord Together (co-op)** setup on Mount & Blade II: Bannerlord.
+
+It automates the fiddly, crash-prone setup that normally eats hours of guesswork, and gives you a
+**friendly live loading screen** (with a real activity log) so you never stare at a black screen
 wondering if the game froze.
 
-> Built after a real setup where every crash became a feature. This tool exists so you don't repeat it.
+> Built from a real, painful setup where every crash became a feature. This tool exists so nobody
+> else has to go through that.
 
-## What it does
+## Just want to use it?
 
-- **Detects** your Bannerlord install, game version, and War Sails state automatically (Steam library aware).
-- **Validates** your mods against a known-good profile — reports per-item: OK / missing / wrong version / misplaced.
-- **Repairs** the common failures with one action:
-  - Clears the **invalid shader cache** that causes the `0xC0000005` native crash.
-  - Resets a **scrambled or all-disabled load order**.
-  - Renames the **`ROT-Map` → `ROT_Map`** folder mismatch.
-  - Clears crash / safe-mode markers.
-  - Checks that **Steam is running** (the "Unable to initialize Steam API" gotcha).
-- **Live progress reader** — tails the game's own log and shows a phase-based progress bar
-  (booting → mod data → ROT world → campaign gen → map) with a stall warning.
+1. Download this project (green **Code** button > **Download ZIP**) and **extract the whole folder**.
+2. Double-click **`Start.bat`**.
+3. Pick an option from the menu. That's it - no PowerShell knowledge needed.
+
+## What the menu does
+
+| Option | What it does |
+|--------|--------------|
+| **1) PLAY** | Runs a pre-launch check, launches the game through BLSE, then opens the live loading screen. The one-button "just let me play." |
+| **2) Ready to play?** | Pre-launch check only: version, War Sails, Steam running, BLSE, dependencies, ROT, co-op, shader cache. GO / NO-GO with plain-English reasons. |
+| **3) Check my setup** | Deep dependency + install check. For each mod: is the folder there, the manifest valid, the actual DLL in the right `bin` folder, and the version right? |
+| **4) Fix common problems** | One-click repair: clears the invalid shader cache (the `0xC0000005` crash), resets a scrambled/all-disabled load order, clears crash markers, checks Steam. Backs up first. |
+| **5) Watch the game load** | The friendly loading screen: smooth progress bar + a live "what it's doing now" activity log. Only watches - never touches the game. |
+| **6) Co-op: match with a friend** | Host exports their exact setup to a file; friend compares and the tool reports precisely what differs (missing mod / wrong version). Kills the #1 co-op failure. |
+| **7) Technical details** | Raw detected info, for troubleshooting. |
 
 ## What it does NOT do
 
-- It does **not** download or bundle the mods (licensing). You supply the archives; it automates placement.
-  Links to each official download are provided in-tool.
+- It does **not** download or bundle the mods (licensing). You supply the archives; the tool detects,
+  places, validates, repairs, and launches. Every option that needs a download shows the official link.
 
 ## Requirements
 
 - Windows 10/11
 - Mount & Blade II: Bannerlord (Steam), set to **v1.3.15**, War Sails DLC **off**
-- The mod archives: Realm of Thrones 7.1 (1.3.15, non-Warsails), Bannerlord Together, BLSE, ModReady deps
-- 7-Zip (the tool checks/installs it — WinRAR corrupts ROT archives)
+- Mod archives: Realm of Thrones 7.1 (1.3.15, non-Warsails), Bannerlord Together, BLSE, and the
+  dependency mods (Harmony, UIExtenderEx, ButterLib, MCM)
+- 7-Zip recommended (WinRAR corrupts ROT archives)
 
-## Usage
+## The crashes this tool fixes (learned the hard way)
 
-```powershell
-# Interactive menu
-.\src\ROT-CoopSetup.ps1
-
-# Just watch a load in progress (the progress bar)
-.\src\ROT-CoopSetup.ps1 -Watch
-
-# Just run crash repair
-.\src\ROT-CoopSetup.ps1 -FixCrash
-```
-
-A packaged `.exe` (double-click, no PowerShell policy prompts) is planned — see the roadmap.
+- **Invalid shader cache** -> native `0xC0000005` crash. The tool clears the stale `.sack` files so the
+  engine rebuilds them cleanly. (This was the single hardest bug to find.)
+- **Scrambled load order / everything disabled** - the launcher silently rewrites `LauncherData.xml`;
+  the tool resets it to a correct, dependency-safe order.
+- **`ROT-Map` folder vs `ROT_Map` internal Id** mismatch - detected and reported.
+- **Steam not running** -> "Unable to initialize Steam API" instant close - checked before launch.
+- **Wrong / incomplete dependencies** - the deep check catches "folder exists but the DLL isn't in bin."
 
 ## Project layout
 
 ```
+Start.bat              double-click launcher (bypasses PowerShell policy prompts)
 src/
-  ROT-CoopSetup.ps1   entry point + menu
-  Detect.ps1          find Bannerlord / version / paths
-  Validate.ps1        diagnose engine (powers Repair)
-  FixCrash.ps1        the one-click repairs
-  ProgressReader.ps1  live loading progress bar
+  ROT-CoopSetup.ps1    entry point + menu
+  Detect.ps1           find Bannerlord / version / War Sails
+  Dependencies.ps1     deep dependency check + guided fixes
+  Validate.ps1         full install diagnose engine
+  LoadOrder.ps1        write a correct, dependency-safe load order
+  Preflight.ps1        GO / NO-GO pre-launch gate
+  FixCrash.ps1         one-click repairs
+  ProgressReader.ps1   live loading screen (bar + activity log)
+  Launch.ps1           one-click PLAY (preflight -> launch -> watch)
+  CoopSync.ps1         export / compare setups between co-op partners
 config/
-  compat.json         version-compat map + known crashes (the file to keep updated)
+  compat.json          version-compat map + known crashes (keep this updated)
 docs/
-  DESIGN.md           architecture + roadmap
+  DESIGN.md            architecture + roadmap
 ```
 
 ## Roadmap
 
-- [x] Detect / Validate / FixCrash / Progress reader (v1 core)
-- [ ] Guided install flow (drop archives → auto-place)
-- [ ] Package as `.exe` (ps2exe)
-- [ ] Co-op "export/import setup" so a friend can match the host exactly
-- [ ] WPF GUI (v2)
+- [x] Detect, deep dependency check, validate
+- [x] One-click crash repair + load-order reset
+- [x] Live loading screen (smooth bar + activity log)
+- [x] One-click PLAY (preflight -> launch -> watch)
+- [x] Co-op setup export / compare
+- [ ] Guided install flow (point at archives -> auto-place everything)
+- [ ] Package as a single `.exe` (ps2exe)
+- [ ] WPF GUI
 
 ## Safety
 
-Every destructive step backs up first (to `Downloads\_rot_installer_backup`). The tool is idempotent —
-safe to re-run. Nothing is deleted without a backup copy.
+Every destructive step backs up first (to `Downloads\_rot_installer_backup`). The tool is idempotent -
+safe to re-run - and nothing is deleted without a backup copy. It only ever reads the game's log; it
+never modifies a running game.
+
+## Compatibility note
+
+Mod versions drift over time. If a future ROT or Bannerlord Together update changes the working
+version combo, update `config/compat.json` - that one file is the source of truth.
 
 ## License
 
-MIT — see LICENSE.
+MIT (see LICENSE). Unofficial fan tool; not affiliated with TaleWorlds, the Realm of Thrones team,
+the Bannerlord Together team, or BUTR. Does not distribute any mod files.
