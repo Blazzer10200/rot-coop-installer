@@ -54,10 +54,85 @@ function Repair-RotInstall {
     foreach ($m in $markers) { if ([System.IO.File]::Exists($m)) { [System.IO.File]::Delete($m); $mCount++ } }
     $report.Add("Crash markers cleared: $mCount (prevents spurious safe-mode prompt)")
 
-    # --- CHECK 4: Steam running? (the 'Unable to initialize Steam API' gotcha) ---
+    # --- FIX 5: repair ROT's malformed string XML (THE INFINITE-LOOP FIX) ---
+    # ROT 7.1 ships GameText string files with DUPLICATE <string id="..."> entries and a
+    # couple of empty <tag/> elements. These violate the engine's GameText.xsd schema
+    # (id must be unique; tag_name is required). When the engine builds string tables at
+    # "Initializing new game", the duplicate-key validation aborts and the whole init
+    # retries -- forever. No crash, no error dialog: just an endless load that never
+    # reaches the map. This clears it. (Backs up every file it touches.)
+    $report.Add((Repair-RotXml -Game $Game -BackupRoot $BackupRoot))
+
+    # --- CHECK 6: Steam running? (the 'Unable to initialize Steam API' gotcha) ---
     $steam = Get-Process -Name "steam" -ErrorAction SilentlyContinue
     if ($steam) { $report.Add("Steam: RUNNING (good)") }
     else { $report.Add("Steam: NOT RUNNING -- start Steam and log in BEFORE launching, or you get 'Unable to initialize Steam API'") }
 
     $report
+}
+
+# Repair ROT's malformed GameText string XML in place. Two defect classes:
+#   1) duplicate <string id="..."> within a file -> violates the schema's unique key
+#      constraint, which makes campaign init loop forever. We rename repeats to
+#      "<id>_dupN" so BOTH strings survive and the id becomes unique.
+#   2) empty <tag ... /> with no tag_name -> violates required-attribute. We strip the
+#      empty tag element (the surrounding <string> stays valid).
+# Only touches GameText-schema files (<strings> root). Skips Languages\ localization
+# files, whose <base type="string"> schema legitimately uses <tag language="..."/>.
+function Repair-RotXml {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Game,
+        [string] $BackupRoot = (Join-Path $env:USERPROFILE "Downloads\_rot_installer_backup")
+    )
+    $rotModules = @('ROT-Core','ROT-Content','ROT_Map','ROT-Dragon')
+    $filesFixed = 0; $idsFixed = 0; $tagsFixed = 0
+    $xmlBackup = Join-Path $BackupRoot "rot_xml"
+    New-Item -ItemType Directory -Force -Path $xmlBackup | Out-Null
+
+    foreach ($mod in $rotModules) {
+        $md = Join-Path $Game.ModulesPath "$mod\ModuleData"
+        if (-not (Test-Path $md)) { continue }
+        # GameText string files live directly in ModuleData (NOT under Languages\)
+        $xmls = Get-ChildItem $md -Filter '*.xml' -ErrorAction SilentlyContinue |
+                Where-Object { $_.FullName -notmatch '\\Languages\\' }
+        foreach ($xf in $xmls) {
+            $raw = [System.IO.File]::ReadAllText($xf.FullName)
+            # only GameText-schema files (root <strings>); skip anything else
+            if ($raw -notmatch '(?s)<strings\b') { continue }
+
+            $orig = $raw
+
+            # (1) dedupe string ids
+            $seen = @{}
+            $raw = [regex]::Replace($raw, '(<string\s+id\s*=\s*")([^"]+)(")', {
+                param($m)
+                $id = $m.Groups[2].Value
+                if ($seen.ContainsKey($id)) {
+                    $seen[$id]++
+                    return $m.Groups[1].Value + ("{0}_dup{1}" -f $id, $seen[$id]) + $m.Groups[3].Value
+                } else { $seen[$id] = 0; return $m.Value }
+            })
+            $thisIds = ($seen.Values | Where-Object { $_ -gt 0 } | Measure-Object -Sum).Sum
+
+            # (2) strip empty <tag .../> elements that have no tag_name (self-closing)
+            $emptyTagRx = '(?s)<tag\b(?![^>]*tag_name)[^>]*?/>'
+            $thisTags = ([regex]::Matches($raw, $emptyTagRx)).Count
+            if ($thisTags -gt 0) { $raw = [regex]::Replace($raw, $emptyTagRx, '') }
+
+            if ($raw -ne $orig) {
+                # back up original once
+                $rel = $xf.FullName.Substring($Game.ModulesPath.Length).TrimStart('\')
+                $bpath = Join-Path $xmlBackup ($rel -replace '[\\/]','__')
+                if (-not (Test-Path $bpath)) { [System.IO.File]::WriteAllText($bpath, $orig, [System.Text.UTF8Encoding]::new($false)) }
+                [System.IO.File]::WriteAllText($xf.FullName, $raw, [System.Text.UTF8Encoding]::new($false))
+                $filesFixed++; $idsFixed += [int]$thisIds; $tagsFixed += [int]$thisTags
+            }
+        }
+    }
+    if ($filesFixed -gt 0) {
+        "ROT string XML repaired: $filesFixed file(s), $idsFixed duplicate id(s) + $tagsFixed empty tag(s) fixed (THIS is the infinite-load fix; originals backed up)"
+    } else {
+        "ROT string XML: already clean (no duplicate-key defects found)"
+    }
 }

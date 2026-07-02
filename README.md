@@ -26,7 +26,8 @@ wondering if the game froze.
 | **4) Fix common problems** | One-click repair: clears the invalid shader cache (the `0xC0000005` crash), resets a scrambled/all-disabled load order, clears crash markers, checks Steam. Backs up first. |
 | **5) Watch the game load** | The friendly loading screen: smooth progress bar + a live "what it's doing now" activity log. Only watches - never touches the game. |
 | **6) Co-op: match with a friend** | Host exports their exact setup to a file; friend compares and the tool reports precisely what differs (missing mod / wrong version). Kills the #1 co-op failure. |
-| **7) Technical details** | Raw detected info, for troubleshooting. |
+| **7) Co-op: how do I start / join?** | Plain-English steps: the host clicks **Host Coop** (not the normal New Campaign button), the friend clicks **Join Co-op**, plus how to connect over the internet. |
+| **8) Technical details** | Raw detected info, for troubleshooting. |
 
 ## What it does NOT do
 
@@ -43,8 +44,14 @@ wondering if the game froze.
 
 ## The crashes this tool fixes (learned the hard way)
 
+- **The infinite loading screen (the big one).** ROT 7.1 ships a few string files
+  (`comment_strings.xml`, `ROT_module_strings.xml`) with **duplicate entry IDs** and a couple of
+  empty tags. These break the game's schema rules, so when you start a new campaign the engine gets
+  stuck re-initializing the world **forever** - you reach the main menu fine, then the loading screen
+  never ends. No crash, no error message, just an endless load. The tool detects and repairs the bad
+  files (backing them up first) so the campaign actually loads. This one cost hours to find.
 - **Invalid shader cache** -> native `0xC0000005` crash. The tool clears the stale `.sack` files so the
-  engine rebuilds them cleanly. (This was the single hardest bug to find.)
+  engine rebuilds them cleanly.
 - **Scrambled load order / everything disabled** - the launcher silently rewrites `LauncherData.xml`;
   the tool resets it to a correct, dependency-safe order.
 - **`ROT-Map` folder vs `ROT_Map` internal Id** mismatch - detected and reported.
@@ -76,9 +83,10 @@ docs/
 
 - [x] Detect, deep dependency check, validate
 - [x] One-click crash repair + load-order reset
-- [x] Live loading screen (smooth bar + activity log)
+- [x] **Fix the infinite-loading-screen bug (repair ROT's malformed string XML)**
+- [x] Live loading screen (smooth bar + activity log, now detects + warns on the loop bug)
 - [x] One-click PLAY (preflight -> launch -> watch)
-- [x] Co-op setup export / compare
+- [x] Co-op setup export / compare + how-to-start-co-op guide
 - [ ] Guided install flow (point at archives -> auto-place everything)
 - [ ] Package as a single `.exe` (ps2exe)
 - [ ] WPF GUI

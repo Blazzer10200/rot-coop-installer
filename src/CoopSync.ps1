@@ -46,6 +46,38 @@ function Export-CoopProfile {
     $OutFile
 }
 
+function Show-CoopHowTo {
+    # The co-op START flow that trips everyone up: you do NOT click the normal
+    # singleplayer "New Campaign". You click the mod's "Host Coop" button first.
+    Write-Host ""
+    Write-Host "  HOW TO ACTUALLY START A CO-OP GAME" -ForegroundColor Cyan
+    Write-Host "  ----------------------------------" -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "  IMPORTANT: Do NOT click the normal 'New Campaign' button." -ForegroundColor Yellow
+    Write-Host "  Co-op has its own buttons on the main menu." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  IF YOU ARE THE HOST:" -ForegroundColor Green
+    Write-Host "    1. Launch the game (your co-op desktop shortcut)."
+    Write-Host "    2. On the main menu, click  >> Host Coop <<  first."
+    Write-Host "    3. THEN start a new campaign - do character + clan creation."
+    Write-Host "    4. Once you reach the map, your friend can join."
+    Write-Host "    5. Bottom-left should say 'BannerlordTogether: N patch(es) applied!'"
+    Write-Host ""
+    Write-Host "  IF YOU ARE JOINING A FRIEND:" -ForegroundColor Green
+    Write-Host "    1. Launch the game."
+    Write-Host "    2. On the main menu, click  >> Join Co-op <<."
+    Write-Host "    3. Join via the Steam lobby, or type the host's IP address."
+    Write-Host "    4. Pick or create your character. The host's world loads automatically."
+    Write-Host ""
+    Write-Host "  CONNECTING OVER THE INTERNET:" -ForegroundColor White
+    Write-Host "    - Easiest: use Steam networking / Steam lobby (no router setup)."
+    Write-Host "    - Non-Steam: the HOST forwards UDP port 47770 (and 47771 for battles),"
+    Write-Host "      or use a VPN like Radmin/Hamachi and share that IP."
+    Write-Host ""
+    Write-Host "  BOTH PLAYERS must have the EXACT same mods + versions (use option 6)." -ForegroundColor Gray
+    Write-Host ""
+}
+
 function Compare-CoopProfile {
     [CmdletBinding()]
     param(

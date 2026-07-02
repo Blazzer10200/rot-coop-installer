@@ -121,12 +121,17 @@ function Watch-BannerlordLoad {
             }
         }
 
-        # "Initializing new game" looping rapidly = final generation, treat as ~95%+
-        $initLoop = ([regex]::Matches($joined,'Initializing new game begin')).Count -ge 3
+        # Count "Initializing new game begin". ONE or a few = normal world generation.
+        # MANY (the whole init sequence restarting over and over) = the known ROT
+        # infinite-loop bug: duplicate keys in ROT's string XML abort string-table
+        # loading, so init retries forever and never reaches the map. We must NOT paint
+        # that as "almost done" (the trap that makes people wait an hour for nothing).
+        # We scan the WHOLE log for this, not just the tail, so the count is real.
+        $initCount = if ($main) { ([regex]::Matches((Get-Content $main.FullName -Raw -ErrorAction SilentlyContinue),'Initializing new game begin')).Count } else { 0 }
+        $initLoopBug = $initCount -ge 10
 
         # size-based percent, scaled to expected total; ratchet upward only
         $rawPct = if ($ExpectedOps -gt 0) { [int]([math]::Min(99, ($len/1KB) / ($ExpectedOps/1KB) * 100)) } else { 0 }
-        if ($initLoop -and $rawPct -lt 95) { $rawPct = 95 }
         if ($rawPct -gt $maxPct) { $maxPct = $rawPct }
         $pct = if ($isDone) { 100 } else { $maxPct }
 
@@ -135,12 +140,26 @@ function Watch-BannerlordLoad {
         if ($grew) { $lastGrow=Get-Date }; $lastLen=$len
         $quiet=[int]((Get-Date)-$lastGrow).TotalSeconds
         $resp = if ($proc){ $proc.Responding } else { $true }
-        if     (-not $proc)                { $status='Game window closed. If you are NOT in-game, it may have crashed.'; $sc='Yellow' }
+        if     ($initLoopBug)              { $status="STUCK IN A LOOP ($initCount x). This is the ROT string-file bug. Close the game, run 'Fix common problems', relaunch."; $sc='Red' }
+        elseif (-not $proc)                { $status='Game window closed. If you are NOT in-game, it may have crashed.'; $sc='Yellow' }
         elseif (-not $resp)                { $status='Working hard. Windows may say "not responding" - that is NORMAL.'; $sc='Yellow' }
         elseif ($quiet -gt $StallWarnSeconds){ $status="Still going, just quiet. First loads take a while - hang tight."; $sc='Yellow' }
         else                               { $status='Everything looks healthy. Sit tight!'; $sc='Green' }
 
         Draw $pct $title $spinner[$spin % 4] $status $sc $feed
+
+        # If we detect the loop bug, stop pretending it's loading - tell the truth and bail.
+        if ($initLoopBug) {
+            Write-Host "`n" -NoNewline
+            Write-Host "     !!  DETECTED THE INFINITE-LOAD BUG  !!" -ForegroundColor Red
+            Write-Host "     The game is stuck re-initializing ($initCount times and counting)." -ForegroundColor Yellow
+            Write-Host "     It will NOT finish on its own. Here's the fix:" -ForegroundColor Yellow
+            Write-Host "       1. Close the game." -ForegroundColor White
+            Write-Host "       2. Back at the menu, pick '4) Fix common problems'." -ForegroundColor White
+            Write-Host "       3. Launch again - it'll load normally this time." -ForegroundColor White
+            Write-Host "`n     Press Enter to go back." -ForegroundColor Gray
+            $null = Read-Host; break
+        }
 
         if ($isDone -or ($pct -ge 100)) {
             Write-Host "`n" -NoNewline

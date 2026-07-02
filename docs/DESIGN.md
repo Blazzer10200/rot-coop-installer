@@ -34,6 +34,7 @@ ROT-CoopSetup.ps1
 ├─ LOADORDER  generate LauncherData.xml (deps→ROT→co-op, GameType=Singleplayer, all IsSelected)
 ├─ VALIDATE   parse every SubModule.xml; confirm each DependedModule resolves earlier; green/red table
 ├─ FIXCRASH   ★ THE KILLER FEATURE ★
+│             - repair ROT's malformed string XML (dedupe ids) — THE infinite-load fix
 │             - delete ROT *.sack shader caches (the 0xC0000005 fix)
 │             - reset scrambled/all-false load order
 │             - clear BLSE crash + safe-mode markers
@@ -66,6 +67,18 @@ ROT-CoopSetup.ps1
 ```
 
 ## Hard-won gotchas to bake in (from the real setup)
+- **★ Infinite "Initializing new game" loop = duplicate `<string id>` in ROT's GameText XML.** ROT 7.1
+  ships `comment_strings.xml` (1 dup + 1 empty `<tag/>`) and `ROT_module_strings.xml` (41 dups) with
+  entries that violate `GameText.xsd`'s `string_unique_attribute` unique constraint + required
+  `tag_name`. At campaign init the engine builds string tables; the duplicate-key validation aborts and
+  the WHOLE init sequence retries — forever. Reaches main menu, then hangs on new-game with NO crash and
+  a clean errors log (pure logic loop). Diagnosed from the log: 9,544 iterations / 87 min, loop body =
+  string-table load, dies on ROT-Content's two files, never reaches world-gen. **Fix: dedupe the ids
+  (`_dupN` suffix, keeps both strings) + strip empty tags.** `str_english.xml` (localization schema,
+  `<base type="string">`) also has dups but is loaded via a tolerant path — NOT fatal, but we clean it
+  too. Do NOT touch its `<tag language="English"/>` (valid localization syntax).
+  **Meta-lesson: this loop looked like "almost done, 95%" by CPU/log-size — the ONLY reliable signal is
+  the init-loop COUNTER, not CPU or responsiveness.** The progress reader now counts it and warns.
 - **ROT-Map folder Id = `ROT_Map`** (underscore) — rename folder or dep resolution fails.
 - **Shader cache `.sack` = crash** — mismatched precompiled shaders → native 0xC0000005. Delete them.
 - **Steam must be running + logged in** first → else "Unable to initialize Steam API" instant-close.

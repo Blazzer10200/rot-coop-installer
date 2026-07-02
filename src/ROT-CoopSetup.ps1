@@ -72,7 +72,8 @@ function Invoke-Menu {
         Write-Host "    4) Fix common problems (crashes, load order, shader cache)"
         Write-Host "    5) Watch the game load (friendly loading screen)"
         Write-Host "    6) Co-op: match with a friend (export / compare setups)"
-        Write-Host "    7) Show technical details"
+        Write-Host "    7) Co-op: how do I start / join a game?" -ForegroundColor Green
+        Write-Host "    8) Show technical details"
         Write-Host "    Q) Quit"
         Write-Host ""
         $c = (Read-Host "  Type a number and press Enter").Trim().ToUpper()
@@ -116,9 +117,10 @@ function Invoke-Menu {
                 }
                 Pause-Return
             }
-            '7' { $g | Format-List; Pause-Return }
+            '7' { Show-CoopHowTo; Pause-Return }
+            '8' { $g | Format-List; Pause-Return }
             'Q' { Write-Host ""; return }
-            default { Write-Host "  Please type 1-7 or Q." -ForegroundColor Yellow; Start-Sleep 1 }
+            default { Write-Host "  Please type 1-8 or Q." -ForegroundColor Yellow; Start-Sleep 1 }
         }
     }
 }
