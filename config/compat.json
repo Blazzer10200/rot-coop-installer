@@ -38,21 +38,22 @@
         },
         "deps": {
           "bundle": "OFFICIAL-BUTR",
-          "modules": ["Bannerlord.Harmony", "Bannerlord.UIExtenderEx", "Bannerlord.ButterLib"],
-          "versions": { "Bannerlord.Harmony": "2.4.2.225", "Bannerlord.ButterLib": "2.10.3", "Bannerlord.UIExtenderEx": "2.13.2" },
+          "modules": ["Bannerlord.Harmony", "Bannerlord.UIExtenderEx", "Bannerlord.ButterLib", "Bannerlord.MBOptionScreen"],
+          "versions": { "Bannerlord.Harmony": "2.4.2.225", "Bannerlord.ButterLib": "2.10.3", "Bannerlord.UIExtenderEx": "2.13.2", "Bannerlord.MBOptionScreen": "5.11.3" },
           "sources": {
             "Harmony": "https://www.nexusmods.com/mountandblade2bannerlord/mods/2006",
             "ButterLib": "https://www.nexusmods.com/mountandblade2bannerlord/mods/2018",
-            "UIExtenderEx": "https://www.nexusmods.com/mountandblade2bannerlord/mods/2102"
+            "UIExtenderEx": "https://www.nexusmods.com/mountandblade2bannerlord/mods/2102",
+            "MCM": "https://github.com/Aragas/Bannerlord.MBOptionScreen/releases/tag/v5.11.3"
           },
           "install": "extract-each-to-modules",
-          "mcm": "Bannerlord.MBOptionScreen (MCM) is OPTIONAL and NOT required by ROT-Core. The ModReady MCM drags in BetaDeps.Foundation; leave MCM out unless a mod needs it.",
+          "mcm": "MCM (Bannerlord.MBOptionScreen) is REQUIRED for ROT, not optional. ROT.dll calls MCMv5 / MCM.Abstractions at runtime even though ROT-Core's SubModule.xml does NOT declare it as a dependency (so the launcher won't warn). Without MCM present, ROT throws an unhandled exception 0xE0434352 (Resolving: MCMv5 5.11.3.0 -> crash) ~26s into loading a new game. Use OFFICIAL MCM v5.11.3 (assembly 5.11.3.0, matches what ROT resolves); do NOT use the ModReady/BetaDeps MCM stub (drags in BetaDeps.Foundation.dll which conflicts with official ButterLib).",
           "CRITICAL": "Use OFFICIAL BUTR deps, NOT ModReady/BetaDeps stubs. The ModReady 1.0.5 bundle is built for Bannerlord 1.4.x - on 1.3.15 its stub Harmony patches target the wrong method signatures. They REACH THE MAIN MENU but silently fail at campaign-init: BetaDeps catches the MissingMethodException, unpatches, and the new-game bootstrap loops forever ('Initializing new game begin' x thousands, no crash, clean errors log). Official ButterLib ships a per-game-version implementation DLL (matches 1.3.x) and needs BLSE.AssemblyResolver, which BLSE provides. This SUPERSEDES the old 'stubs reach the menu' note - reaching the menu was never the bar; loading a campaign is."
         }
       },
       "loadOrder": [
         "Native", "SandBoxCore", "Sandbox", "StoryMode", "CustomBattle",
-        "Bannerlord.Harmony", "Bannerlord.UIExtenderEx", "Bannerlord.ButterLib",
+        "Bannerlord.Harmony", "Bannerlord.UIExtenderEx", "Bannerlord.ButterLib", "Bannerlord.MBOptionScreen",
         "ROT-Core", "ROT-Content", "ROT_Map", "ROT-Dragon",
         "BannerlordTogether"
       ],
