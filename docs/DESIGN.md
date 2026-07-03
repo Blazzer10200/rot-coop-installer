@@ -105,21 +105,25 @@ Tail `C:\ProgramData\Mount and Blade II Bannerlord\logs\rgl_log_*.txt` during lo
 4. [DONE] Preflight GO/NO-GO gate + one-click PLAY (launch + watch)
 5. [DONE] Friend-sync export/compare
 6. [DONE] Published to GitHub (Blazzer10200/rot-coop-installer, MIT)
-7. [TODO] Guided install flow (point at archives -> auto-place)
-8. [TODO] Package as single .exe (ps2exe)
-9. [TODO] v2 WPF GUI wrapper
+7. [DONE] Auto-repair dependencies (download official BUTR deps + MCM from GitHub, replace stubs)
+8. [DONE] Startup "what should I do next?" recommendation (self-triage for non-technical users)
+9. [DONE] VERIFIED end-to-end on a real machine - solo AND co-op both confirmed working
+10. [TODO] Guided install flow for the MODS themselves (point at ROT/BLSE archives -> auto-place)
+11. [TODO] Package as single .exe (ps2exe)
+12. [TODO] v2 WPF GUI wrapper
 
 ## Implemented modules (v1, all tested against a real install)
-- Detect.ps1        - Steam-library-aware install/version/War Sails detection
-- Dependencies.ps1  - deep check (folder + manifest + DLL-in-bin + version) w/ guided fixes
-- Validate.ps1      - full install diagnose table
-- LoadOrder.ps1     - writes correct dependency-safe LauncherData.xml (fixes rescramble)
-- Preflight.ps1     - GO/NO-GO pre-launch gate
-- FixCrash.ps1      - shader-cache clear, load-order reset, marker clear, Steam check
-- ProgressReader.ps1- live loading screen: smooth bar + rolling humanized activity feed
-- Launch.ps1        - one-click PLAY: preflight -> BLSE launch -> watch
-- CoopSync.ps1      - export/compare setup fingerprints between co-op partners
-- ROT-CoopSetup.ps1 - menu entry point (guarded so importing doesn't auto-run)
+- Detect.ps1         - Steam-library-aware install/version/War Sails detection
+- Dependencies.ps1   - deep check (folder + manifest + DLL-in-bin + version + STUB detection) w/ guided fixes
+- Validate.ps1       - full install diagnose table
+- LoadOrder.ps1      - writes correct dependency-safe LauncherData.xml (fixes rescramble)
+- Preflight.ps1      - GO/NO-GO pre-launch gate (incl. ROT-text-files + dep-health checks)
+- FixCrash.ps1       - shader-cache clear, load-order reset, ROT-XML repair, dep-health, Steam check
+- FixDependencies.ps1- auto-download + install official Harmony/ButterLib/UIExtenderEx/MCM from GitHub
+- ProgressReader.ps1 - live loading screen: smooth bar + rolling humanized activity feed
+- Launch.ps1         - one-click PLAY: preflight -> BLSE launch -> watch
+- CoopSync.ps1       - export/compare setup fingerprints between co-op partners
+- ROT-CoopSetup.ps1  - menu entry point + startup recommendation (guarded so importing doesn't auto-run)
 
 ## Engineering notes / gotchas baked in
 - ASCII-only output (PS 5.1 console encoding mangles em-dashes / box-art into mojibake).

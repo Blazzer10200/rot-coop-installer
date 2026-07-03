@@ -16,23 +16,30 @@ wondering if the game froze.
 2. Double-click **`Start.bat`**.
 3. Pick an option from the menu. That's it - no PowerShell knowledge needed.
 
+When you open the tool it **scans your setup and tells you the one thing to do next** in plain
+English - so you don't have to know which option to pick. Then:
+
 ## What the menu does
 
 | Option | What it does |
 |--------|--------------|
 | **1) PLAY** | Runs a pre-launch check, launches the game through BLSE, then opens the live loading screen. The one-button "just let me play." |
-| **2) Ready to play?** | Pre-launch check only: version, War Sails, Steam running, BLSE, dependencies, ROT, co-op, shader cache. GO / NO-GO with plain-English reasons. |
-| **3) Check my setup** | Deep dependency + install check. For each mod: is the folder there, the manifest valid, the actual DLL in the right `bin` folder, and the version right? |
-| **4) Fix common problems** | One-click repair: clears the invalid shader cache (the `0xC0000005` crash), resets a scrambled/all-disabled load order, clears crash markers, checks Steam. Backs up first. |
-| **5) Watch the game load** | The friendly loading screen: smooth progress bar + a live "what it's doing now" activity log. Only watches - never touches the game. |
-| **6) Co-op: match with a friend** | Host exports their exact setup to a file; friend compares and the tool reports precisely what differs (missing mod / wrong version). Kills the #1 co-op failure. |
-| **7) Co-op: how do I start / join?** | Plain-English steps: the host clicks **Host Coop** (not the normal New Campaign button), the friend clicks **Join Co-op**, plus how to connect over the internet. |
-| **8) Technical details** | Raw detected info, for troubleshooting. |
+| **2) Am I ready to play?** | Pre-launch check only: version, War Sails, Steam running, BLSE, dependencies, ROT, co-op, shader cache, ROT text files. GO / NO-GO with plain-English reasons. |
+| **3) Check my setup** | Deep dependency + install check. For each mod: is the folder there, the manifest valid, the actual DLL in the right `bin` folder, the version right, and is it the **official** build (not a stub)? |
+| **4) FIX my dependencies** | **The big one.** Automatically downloads the *correct, official* Harmony, ButterLib, UIExtenderEx and MCM (the versions ROT needs) straight from GitHub, and replaces any wrong "stub" copies. This is the one-click fix for the game looping forever on a new campaign. Backs up first; game must be closed. |
+| **5) Fix common problems** | Repairs the invalid shader cache (the `0xC0000005` crash), resets a scrambled/all-disabled load order, repairs ROT's malformed text files, checks dependency health + MCM, clears crash markers, checks Steam. Backs up first. |
+| **6) Co-op: how do I start / join?** | Plain-English steps: the host clicks **Host Coop** (not the normal New Campaign button), the friend clicks **Join Co-op**, plus how to connect over the internet. |
+| **7) Co-op: match with a friend** | Host exports their exact setup to a file; friend compares and the tool reports precisely what differs (missing mod / wrong version / stub deps). Kills the #1 co-op failure. |
+| **8) Watch the game load** | The friendly loading screen: smooth progress bar + a live "what it's doing now" activity log. Recognizes the healthy first-load (terrain building) and warns if it detects the endless loop. Only watches - never touches the game. |
+| **9) Technical details** | Raw detected info, for troubleshooting. |
 
 ## What it does NOT do
 
-- It does **not** download or bundle the mods (licensing). You supply the archives; the tool detects,
-  places, validates, repairs, and launches. Every option that needs a download shows the official link.
+- It does **not** download or bundle the *mods themselves* - Realm of Thrones, Bannerlord Together,
+  and BLSE (licensing). You supply those; every option that needs one shows the official link.
+- It **does** download the free, open-source **dependency libraries** (Harmony, ButterLib,
+  UIExtenderEx, MCM) for you, because those have official public GitHub releases and getting the
+  wrong version is the single most common way this setup breaks.
 
 ## Requirements
 
@@ -71,13 +78,14 @@ wondering if the game froze.
 ```
 Start.bat              double-click launcher (bypasses PowerShell policy prompts)
 src/
-  ROT-CoopSetup.ps1    entry point + menu
+  ROT-CoopSetup.ps1    entry point + menu + "what should I do next?" recommendation
   Detect.ps1           find Bannerlord / version / War Sails
-  Dependencies.ps1     deep dependency check + guided fixes
+  Dependencies.ps1     deep dependency check (incl. stub detection) + guided fixes
   Validate.ps1         full install diagnose engine
   LoadOrder.ps1        write a correct, dependency-safe load order
   Preflight.ps1        GO / NO-GO pre-launch gate
-  FixCrash.ps1         one-click repairs
+  FixCrash.ps1         one-click repairs (shader cache, load order, text files, dep health)
+  FixDependencies.ps1  auto-download + install the official deps (the headline repair)
   ProgressReader.ps1   live loading screen (bar + activity log)
   Launch.ps1           one-click PLAY (preflight -> launch -> watch)
   CoopSync.ps1         export / compare setups between co-op partners
@@ -89,13 +97,16 @@ docs/
 
 ## Roadmap
 
-- [x] Detect, deep dependency check, validate
+- [x] Detect, deep dependency check (incl. stub detection), validate
 - [x] One-click crash repair + load-order reset
-- [x] **Fix the infinite-loading-screen bug (repair ROT's malformed string XML)**
-- [x] Live loading screen (smooth bar + activity log, now detects + warns on the loop bug)
+- [x] **Fix the infinite-loading-screen bug** (both causes: wrong-version stub deps + malformed text files)
+- [x] **Auto-download + install the correct official dependencies** (the headline repair)
+- [x] "What should I do next?" recommendation on startup (guides non-technical users)
+- [x] Live loading screen (recognizes healthy first-load, warns on the loop bug)
 - [x] One-click PLAY (preflight -> launch -> watch)
 - [x] Co-op setup export / compare + how-to-start-co-op guide
-- [ ] Guided install flow (point at archives -> auto-place everything)
+- [x] **Verified end-to-end on a real machine: solo + co-op both confirmed working**
+- [ ] Guided install flow for the mods themselves (point at ROT/BLSE archives -> auto-place)
 - [ ] Package as a single `.exe` (ps2exe)
 - [ ] WPF GUI
 
