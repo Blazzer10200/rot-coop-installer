@@ -74,7 +74,7 @@ function Show-CoopHowTo {
     Write-Host "    - Non-Steam: the HOST forwards UDP port 47770 (and 47771 for battles),"
     Write-Host "      or use a VPN like Radmin/Hamachi and share that IP."
     Write-Host ""
-    Write-Host "  BOTH PLAYERS must have the EXACT same mods + versions (use option 6)." -ForegroundColor Gray
+    Write-Host "  BOTH PLAYERS must have the EXACT same mods + versions (use option 7 to compare)." -ForegroundColor Gray
     Write-Host ""
 }
 

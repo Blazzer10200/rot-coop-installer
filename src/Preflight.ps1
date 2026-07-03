@@ -51,7 +51,7 @@ function Invoke-Preflight {
         $ids = [regex]::Matches([System.IO.File]::ReadAllText($gf), '<string\s+id\s*=\s*"([^"]+)"') | ForEach-Object { $_.Groups[1].Value }
         $dupTotal += @($ids | Group-Object | Where-Object { $_.Count -gt 1 }).Count
     }
-    Chk 'ROT text files valid' ($dupTotal -eq 0) $(if($dupTotal -eq 0){'no duplicate keys (good)'}else{"$dupTotal duplicate key(s) - WILL cause the endless loading loop; run Fix (option 4)"})
+    Chk 'ROT text files valid' ($dupTotal -eq 0) $(if($dupTotal -eq 0){'no duplicate keys (good)'}else{"$dupTotal duplicate key(s) - WILL cause the endless loading loop; run 'Fix common problems' (option 5)"})
 
     # 7) Co-op mod present
     $bt = Test-Path (Join-Path $Game.ModulesPath 'BannerlordTogether\bin\Win64_Shipping_Client\BannerlordTogether.dll')
