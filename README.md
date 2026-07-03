@@ -44,12 +44,20 @@ wondering if the game froze.
 
 ## The crashes this tool fixes (learned the hard way)
 
-- **The infinite loading screen (the big one).** ROT 7.1 ships a few string files
-  (`comment_strings.xml`, `ROT_module_strings.xml`) with **duplicate entry IDs** and a couple of
-  empty tags. These break the game's schema rules, so when you start a new campaign the engine gets
-  stuck re-initializing the world **forever** - you reach the main menu fine, then the loading screen
-  never ends. No crash, no error message, just an endless load. The tool detects and repairs the bad
-  files (backing them up first) so the campaign actually loads. This one cost hours to find.
+- **The infinite loading screen (the big one).** Two separate causes both produce the same endless
+  load - reach the main menu fine, then the "new campaign" loading screen never ends, no crash, no
+  error message:
+  1. **Wrong-version dependency stubs.** The popular "ModReady"/BetaDeps bundle ships *stub* copies of
+     Harmony/ButterLib/UIExtenderEx built for a **different game version**. They load and reach the
+     menu, but their patches silently fail at campaign start, so the game re-initializes forever. The
+     fix is to use the **official** BUTR dependencies that match your game version. The tool detects
+     these stubs and tells you exactly what to replace.
+  2. **Malformed ROT text files.** ROT 7.1 ships a few string files with **duplicate entry IDs** and
+     empty tags that break the game's schema rules. The tool repairs them (backing them up first).
+- **The ~26-second crash into a new game.** ROT secretly needs **MCM** (the mod settings menu) at
+  runtime - it calls into it even though it doesn't list it as a requirement, so nothing warns you.
+  Without MCM you crash about 26 seconds into loading a campaign. The tool checks for it and points
+  you at the correct official version (v5.11.3).
 - **Invalid shader cache** -> native `0xC0000005` crash. The tool clears the stale `.sack` files so the
   engine rebuilds them cleanly.
 - **Scrambled load order / everything disabled** - the launcher silently rewrites `LauncherData.xml`;

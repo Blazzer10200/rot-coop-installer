@@ -63,12 +63,51 @@ function Repair-RotInstall {
     # reaches the map. This clears it. (Backs up every file it touches.)
     $report.Add((Repair-RotXml -Game $Game -BackupRoot $BackupRoot))
 
-    # --- CHECK 6: Steam running? (the 'Unable to initialize Steam API' gotcha) ---
+    # --- FIX 6: dependency health (stub deps + missing MCM = the two crash causes) ---
+    # These are the deepest ROT co-op failures we hit: (a) ModReady/BetaDeps STUB deps
+    # built for the wrong game version -> silent infinite new-game loop; (b) MCM missing
+    # -> ROT crashes ~26s in resolving MCMv5. Repair can't safely auto-download, so it
+    # reports precisely what to fix.
+    foreach ($line in (Test-DepHealth -Game $Game)) { $report.Add($line) }
+
+    # --- CHECK 7: Steam running? (the 'Unable to initialize Steam API' gotcha) ---
     $steam = Get-Process -Name "steam" -ErrorAction SilentlyContinue
     if ($steam) { $report.Add("Steam: RUNNING (good)") }
     else { $report.Add("Steam: NOT RUNNING -- start Steam and log in BEFORE launching, or you get 'Unable to initialize Steam API'") }
 
     $report
+}
+
+# Check the two dependency conditions that silently break a ROT campaign:
+#   1) BetaDeps/ModReady STUB libs (built for a different game version) -> new-game loop
+#   2) MCM (Bannerlord.MBOptionScreen) missing -> ROT throws resolving MCMv5 ~26s in
+# Returns human-readable report lines (does not modify anything).
+function Test-DepHealth {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] $Game)
+    $mods = $Game.ModulesPath
+    $out  = [System.Collections.Generic.List[string]]::new()
+
+    # stub check across the core dep folders
+    $stubHits = @()
+    foreach ($d in 'Bannerlord.Harmony','Bannerlord.ButterLib','Bannerlord.UIExtenderEx','Bannerlord.MBOptionScreen') {
+        $bin = Join-Path $mods "$d\bin\Win64_Shipping_Client"
+        if ((Test-Path (Join-Path $bin 'BetaDeps.Foundation.dll')) -or (Test-Path (Join-Path $bin 'BetaDeps.Harmony.dll'))) {
+            $stubHits += $d
+        }
+    }
+    if ($stubHits.Count -gt 0) {
+        $out.Add("DEPENDENCIES: found ModReady/BetaDeps STUB libs ($($stubHits -join ', ')). These reach the menu but can loop forever on a new campaign. Replace with the OFFICIAL BUTR versions (Harmony 2006, ButterLib 2018, UIExtenderEx 2102 on Nexus; MCM v5.11.3 from github.com/Aragas/Bannerlord.MBOptionScreen/releases).")
+    } else {
+        $out.Add("Dependencies: no stub libs detected (good).")
+    }
+
+    # MCM presence (ROT hard-needs it at runtime even though it doesn't declare it)
+    $mcmDll = Join-Path $mods 'Bannerlord.MBOptionScreen\bin\Win64_Shipping_Client\MCMv5.dll'
+    if (Test-Path $mcmDll) { $out.Add("MCM: present (ROT needs it - good).") }
+    else { $out.Add("MCM: MISSING. ROT calls MCMv5 at runtime and will CRASH ~26s into a new game without it. Install official MCM v5.11.3 (github.com/Aragas/Bannerlord.MBOptionScreen/releases/tag/v5.11.3).") }
+
+    $out
 }
 
 # Repair ROT's malformed GameText string XML in place. Two defect classes:

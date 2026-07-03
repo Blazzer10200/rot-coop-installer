@@ -23,10 +23,18 @@ function Watch-BannerlordLoad {
         [int]    $LoopBugThreshold = 10
     )
 
+    # Ordered most-complete -> least. First match wins, so 'you made it' signals sit on top.
+    # Signatures below are VERIFIED from a real successful ROT 7.1 first load:
+    #   TopScreen: MapScreen                 -> on the campaign map (DONE)
+    #   Matarys gained a level               -> campaign sim ticking (DONE)
+    #   TopScreen: CharacterCreationScreen   -> made it to char creation (almost there)
+    #   compile_shader / Missing shader from sack -> building terrain (SLOW but HEALTHY, first load only)
     $phaseWords = @(
-        @{ Rx='campaign started|OnGameLoaded|OnCampaignStart|EnterMenu'; Title='You made it in!';      Done=$true }
+        @{ Rx='TopScreen: MapScreen|OnGameLoaded|OnCampaignStart|campaign started|gained a level'; Title='You made it onto the map!'; Done=$true }
+        @{ Rx='CharacterCreationScreen';                                  Title='Character creation - almost in!'; Done=$false }
+        @{ Rx='Creating map scene|Main_map|Ticking map scene';            Title='Loading the map of Westeros';     Done=$false }
+        @{ Rx='compile_shader|Missing shader from sack';                  Title='Building the terrain (first load only)'; Done=$false }
         @{ Rx='Initializing new game';                                    Title='Creating the realm';    Done=$false }
-        @{ Rx='terrain|atmosphere|campaign_map';                          Title='Painting the map';      Done=$false }
         @{ Rx='ROT_wanderer|ROT-Content|ROT-Dragon';                      Title='Building Westeros';     Done=$false }
         @{ Rx='voice_strings|action_strings|comment_strings|GameText';    Title='Reading world files';   Done=$false }
         @{ Rx='.';                                                        Title='Waking up the game';    Done=$false }
@@ -35,10 +43,15 @@ function Watch-BannerlordLoad {
     # Turn a raw engine log line into a short, friendly "what it's doing" phrase.
     function Humanize($line) {
         switch -Regex ($line) {
+            'TopScreen: MapScreen|gained a level'  { return 'On the map - your campaign is live!' }
+            'CharacterCreationScreen'      { return 'Character creation screen' }
+            'Creating map scene|Main_map|Ticking map scene' { return 'Loading the map of Westeros' }
+            'compile_shader|Missing shader from sack' { return 'Building the terrain (one-time, slow but normal)' }
             'ROT_wanderer'                 { return 'Loading Westeros characters & backstories' }
             'ROT-Content'                  { return 'Loading Realm of Thrones content' }
             'ROT_Map|ROT-Map'              { return 'Loading the Westeros map data' }
             'ROT-Dragon'                   { return 'Loading dragons & special units' }
+            'Resolving: MCMv5'             { return 'Loading mod settings menu (MCM)' }
             'Initializing new game'        { return 'Generating the campaign world' }
             'voice_strings'                { return 'Loading character voices' }
             'action_strings|comment'       { return 'Loading dialogue & interactions' }
