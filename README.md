@@ -79,6 +79,7 @@ English - so you don't have to know which option to pick. Then:
 Start.bat              double-click launcher (bypasses PowerShell policy prompts)
 src/
   ROT-CoopSetup.ps1    entry point + menu + "what should I do next?" recommendation
+  Common.ps1           shared constants + helpers (module lists, stub detection, status styling)
   Detect.ps1           find Bannerlord / version / War Sails
   Dependencies.ps1     deep dependency check (incl. stub detection) + guided fixes
   Validate.ps1         full install diagnose engine

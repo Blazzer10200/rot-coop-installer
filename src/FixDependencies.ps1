@@ -21,6 +21,19 @@ function Get-OfficialDepSources {
     )
 }
 
+# Turn a raw download/network exception into a plain-English reason a gamer can act on.
+function Format-DownloadError($err) {
+    $m = "$($err.Exception.Message)"
+    switch -Regex ($m) {
+        '404|Not Found'                       { return 'the file was not found on the server (link may have changed)' }
+        'could not be resolved|remote name'   { return 'no internet connection (could not reach github.com)' }
+        'timed out|timeout'                   { return 'the connection timed out (slow or dropped internet)' }
+        'SSL|TLS|secure channel|trust'        { return 'a secure-connection error (check your date/time and antivirus)' }
+        '403|Forbidden'                       { return 'the server refused the request (try again in a minute)' }
+        default                               { return "an unexpected error (technical detail: $m)" }
+    }
+}
+
 # Find a 7-Zip executable (needed to extract the .7z release assets).
 function Get-SevenZip {
     $candidates = @(
@@ -94,8 +107,8 @@ function Repair-Dependencies {
         $dst = Join-Path $mods $dep.Module
         $bin = Join-Path $dst 'bin\Win64_Shipping_Client'
 
-        # is it already the official one (no BetaDeps stub, correct key dll)? skip unless -Force
-        $isStub = (Test-Path (Join-Path $bin 'BetaDeps.Foundation.dll')) -or (Test-Path (Join-Path $bin 'BetaDeps.Harmony.dll'))
+        # is it already the official one (no BetaDeps stub)? skip unless -Force
+        $isStub = (Test-Path $dst) -and (Test-IsStubDep $dst)
         $exists = Test-Path $dst
         if ($exists -and -not $isStub -and -not $Force) {
             $report.Add("$($dep.Name): already official - left as-is.")
@@ -104,17 +117,22 @@ function Repair-Dependencies {
 
         # download
         $url = Resolve-AssetUrl -Repo $dep.Repo -Tag $dep.Tag -Asset $dep.Asset
-        if (-not $url) { $report.Add("$($dep.Name): FAILED to find a download URL (skipped). Get it manually from https://github.com/$($dep.Repo)/releases/tag/$($dep.Tag)"); continue }
+        $manual = "Download it yourself from https://github.com/$($dep.Repo)/releases/tag/$($dep.Tag)"
+        if (-not $url) { $report.Add("$($dep.Name): couldn't find a download link (skipped). $manual"); continue }
         $arc = Join-Path $work "$($dep.Name).7z"
         try {
             Invoke-WebRequest -Uri $url -OutFile $arc -Headers @{ 'User-Agent'='rot-tool' } -TimeoutSec 120 -ErrorAction Stop
         } catch {
-            $report.Add("$($dep.Name): download FAILED ($($_.Exception.Message)). Get it manually from https://github.com/$($dep.Repo)/releases/tag/$($dep.Tag)"); continue
+            $why = Format-DownloadError $_
+            $report.Add("$($dep.Name): download failed - $why. $manual"); continue
         }
 
-        # extract
+        # extract (check 7-Zip actually succeeded before trusting the output folder)
         $ex = Join-Path $work $dep.Name
         & $sz x $arc "-o$ex" -y 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            $report.Add("$($dep.Name): couldn't unzip the download (7-Zip error $LASTEXITCODE). $manual"); continue
+        }
         $srcMod = Get-ChildItem $ex -Recurse -Directory -Filter $dep.Module -ErrorAction SilentlyContinue | Select-Object -First 1
         if (-not $srcMod) {
             # some archives put the module at the root of the archive

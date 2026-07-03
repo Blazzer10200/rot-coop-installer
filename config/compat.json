@@ -57,6 +57,7 @@
         "ROT-Core", "ROT-Content", "ROT_Map", "ROT-Dragon",
         "BannerlordTogether"
       ],
+      "_moduleIdFixupsNote": "Format is \"oldFolderName\": \"correctFolderName\". If ROT ships a folder whose name doesn't match its internal module Id, the tool flags it to be renamed to the correct name.",
       "moduleIdFixups": { "ROT-Map": "ROT_Map" }
     }
   ],
@@ -90,9 +91,12 @@
       "fix": "start-steam-first"
     }
   ],
+  "_note": "shaderCachePaths + knownCrashes below are human-readable documentation. The tool's actual shader-cache list lives in src/Common.ps1 (Get-ShaderCachePaths), which covers all four ROT modules; keep the two in sync when editing.",
   "shaderCachePaths": [
+    "{MODULES}\\ROT-Core\\Shaders\\D3D11\\compressed_shader_cache.sack",
     "{MODULES}\\ROT-Content\\Shaders\\D3D11\\compressed_shader_cache.sack",
     "{MODULES}\\ROT_Map\\Shaders\\D3D11\\compressed_shader_cache.sack",
+    "{MODULES}\\ROT-Dragon\\Shaders\\D3D11\\compressed_shader_cache.sack",
     "{PROGRAMDATA}\\Mount and Blade II Bannerlord\\Shaders"
   ]
 }

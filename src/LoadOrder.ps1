@@ -7,14 +7,14 @@ function Write-LoadOrder {
     param(
         [Parameter(Mandatory)] $Game,   # from Find-Bannerlord
         [Parameter(Mandatory)] $Prof,   # from Get-CompatProfile
-        [switch] $Backup = $true
+        [switch] $NoBackup              # by default we back up the existing file first
     )
 
     $cfg = $Game.ConfigPath
     if (-not (Test-Path (Split-Path $cfg))) {
         New-Item -ItemType Directory -Force -Path (Split-Path $cfg) | Out-Null
     }
-    if ($Backup -and (Test-Path $cfg)) {
+    if (-not $NoBackup -and (Test-Path $cfg)) {
         $stamp = (Get-Item $cfg).LastWriteTime.ToString('yyyyMMdd-HHmmss')
         Copy-Item $cfg "$cfg.bak-$stamp" -Force
     }

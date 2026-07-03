@@ -19,6 +19,7 @@ $ErrorActionPreference = 'Stop'
 $here   = Split-Path -Parent $MyInvocation.MyCommand.Path
 $config = Join-Path (Split-Path $here -Parent) 'config\compat.json'
 
+. "$here\Common.ps1"
 . "$here\Detect.ps1"
 . "$here\Dependencies.ps1"
 . "$here\Validate.ps1"
@@ -41,9 +42,15 @@ function Get-GameOrExplain {
     $g = Find-Bannerlord
     if (-not $g.Found) {
         Write-Host ""
-        Write-Host "  Could not find Mount & Blade II: Bannerlord." -ForegroundColor Yellow
-        Write-Host "  Make sure it's installed through Steam, then run this tool again." -ForegroundColor Gray
+        Write-Host "  Could not find Mount & Blade II: Bannerlord on this PC." -ForegroundColor Yellow
         Write-Host ""
+        Write-Host "  This tool looks for the game in your Steam library folders. Make sure:" -ForegroundColor Gray
+        Write-Host "    - the game is installed through Steam, and" -ForegroundColor Gray
+        Write-Host "    - Steam has finished installing it (not just queued)." -ForegroundColor Gray
+        Write-Host "  Then run this tool again." -ForegroundColor Gray
+        Write-Host ""
+        Write-Host "  Press Enter to close..." -ForegroundColor DarkGray
+        $null = Read-Host
         return $null
     }
     $g
@@ -66,13 +73,9 @@ function Show-Recommendation($g, $prof) {
     # cheap checks (no heavy work)
     $verOk   = $g.VersionNorm -match '^1\.3\.15'
     $blse    = Test-Path (Join-Path $g.BinPath 'Bannerlord.BLSE.LauncherEx.exe')
-    $rotCount= @('ROT-Core','ROT-Content','ROT_Map','ROT-Dragon') | Where-Object { Test-Path (Join-Path $mods "$_\SubModule.xml") } | Measure-Object | ForEach-Object Count
-    $stub    = $false
-    foreach ($d in 'Bannerlord.Harmony','Bannerlord.ButterLib','Bannerlord.UIExtenderEx','Bannerlord.MBOptionScreen') {
-        $b = Join-Path $mods "$d\bin\Win64_Shipping_Client"
-        if ((Test-Path (Join-Path $b 'BetaDeps.Foundation.dll')) -or (Test-Path (Join-Path $b 'BetaDeps.Harmony.dll'))) { $stub = $true }
-    }
-    $mcm = Test-Path (Join-Path $mods 'Bannerlord.MBOptionScreen\bin\Win64_Shipping_Client\MCMv5.dll')
+    $rotCount= @(Get-RotModuleNames | Where-Object { Test-Path (Join-Path $mods "$_\SubModule.xml") }).Count
+    $stub    = @(Get-StubDeps -ModulesPath $mods).Count -gt 0
+    $mcm     = Test-Path (Join-Path $mods 'Bannerlord.MBOptionScreen\bin\Win64_Shipping_Client\MCMv5.dll')
 
     Write-Host ""
     if (-not $verOk) {

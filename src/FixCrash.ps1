@@ -13,12 +13,7 @@ function Repair-RotInstall {
     $report = [System.Collections.Generic.List[string]]::new()
 
     # --- FIX 1: invalid shader caches (the 0xC0000005 native crash) ---
-    $shaderTargets = @(
-        (Join-Path $Game.ModulesPath "ROT-Content\Shaders\D3D11\compressed_shader_cache.sack"),
-        (Join-Path $Game.ModulesPath "ROT_Map\Shaders\D3D11\compressed_shader_cache.sack"),
-        (Join-Path $Game.ModulesPath "ROT-Core\Shaders\D3D11\compressed_shader_cache.sack"),
-        (Join-Path $Game.ModulesPath "ROT-Dragon\Shaders\D3D11\compressed_shader_cache.sack")
-    )
+    $shaderTargets = Get-ShaderCachePaths -ModulesPath $Game.ModulesPath
     $shaderCount = 0
     foreach ($t in $shaderTargets) {
         if ([System.IO.File]::Exists($t)) {
@@ -42,7 +37,7 @@ function Repair-RotInstall {
     if ($Prof -and (Get-Command Write-LoadOrder -ErrorAction SilentlyContinue)) {
         $report.Add((Write-LoadOrder -Game $Game -Prof $Prof))
     } else {
-        $report.Add("Load order: skipped (no profile supplied). Run a full check to reset it.")
+        $report.Add("Load order: skipped (config not loaded). Re-run this from the menu (option 5) to reset it.")
     }
 
     # --- FIX 3: clear crash + safe-mode markers ---
@@ -88,16 +83,10 @@ function Test-DepHealth {
     $mods = $Game.ModulesPath
     $out  = [System.Collections.Generic.List[string]]::new()
 
-    # stub check across the core dep folders
-    $stubHits = @()
-    foreach ($d in 'Bannerlord.Harmony','Bannerlord.ButterLib','Bannerlord.UIExtenderEx','Bannerlord.MBOptionScreen') {
-        $bin = Join-Path $mods "$d\bin\Win64_Shipping_Client"
-        if ((Test-Path (Join-Path $bin 'BetaDeps.Foundation.dll')) -or (Test-Path (Join-Path $bin 'BetaDeps.Harmony.dll'))) {
-            $stubHits += $d
-        }
-    }
+    # stub check across the core dep folders (shared helper - single source of truth)
+    $stubHits = @(Get-StubDeps -ModulesPath $mods)
     if ($stubHits.Count -gt 0) {
-        $out.Add("DEPENDENCIES: found ModReady/BetaDeps STUB libs ($($stubHits -join ', ')). These reach the menu but can loop forever on a new campaign. Replace with the OFFICIAL BUTR versions (Harmony 2006, ButterLib 2018, UIExtenderEx 2102 on Nexus; MCM v5.11.3 from github.com/Aragas/Bannerlord.MBOptionScreen/releases).")
+        $out.Add("DEPENDENCIES: found ModReady/BetaDeps STUB libs ($($stubHits -join ', ')). These reach the menu but can loop forever on a new campaign. Fix it in one click with menu option 4 (FIX my dependencies), or install the official builds manually.")
     } else {
         $out.Add("Dependencies: no stub libs detected (good).")
     }
@@ -124,7 +113,7 @@ function Repair-RotXml {
         [Parameter(Mandatory)] $Game,
         [string] $BackupRoot = (Join-Path $env:USERPROFILE "Downloads\_rot_installer_backup")
     )
-    $rotModules = @('ROT-Core','ROT-Content','ROT_Map','ROT-Dragon')
+    $rotModules = Get-RotModuleNames
     $filesFixed = 0; $idsFixed = 0; $tagsFixed = 0
     $xmlBackup = Join-Path $BackupRoot "rot_xml"
     New-Item -ItemType Directory -Force -Path $xmlBackup | Out-Null

@@ -113,6 +113,7 @@ Tail `C:\ProgramData\Mount and Blade II Bannerlord\logs\rgl_log_*.txt` during lo
 12. [TODO] v2 WPF GUI wrapper
 
 ## Implemented modules (v1, all tested against a real install)
+- Common.ps1         - single source of truth: ROT/dep module lists, stub detection, shader-cache paths, status icon+color styling
 - Detect.ps1         - Steam-library-aware install/version/War Sails detection
 - Dependencies.ps1   - deep check (folder + manifest + DLL-in-bin + version + STUB detection) w/ guided fixes
 - Validate.ps1       - full install diagnose table

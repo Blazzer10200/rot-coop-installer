@@ -12,7 +12,7 @@
 function Watch-BannerlordLoad {
     [CmdletBinding()]
     param(
-        [string] $LogDir = "C:\ProgramData\Mount and Blade II Bannerlord\logs",
+        [string] $LogDir = (Join-Path (Get-BannerlordProgramData) 'logs'),
         [double] $PollSeconds = 1.0,
         [int]    $StallWarnSeconds = 300,
         [int]    $MaxMinutes = 45,
@@ -180,16 +180,19 @@ function Watch-BannerlordLoad {
 
         Draw $pct $title $spinner[$spin % 4] $status $sc $feed
 
-        # If we detect the loop bug, stop pretending it's loading - tell the truth and bail.
+        # If we detect the loop bug, stop pretending it's loading - tell the truth calmly,
+        # frame it as a known + fixable thing (not a scary crash), and bail.
         if ($initLoopBug) {
             Write-Host "`n" -NoNewline
-            Write-Host "     !!  DETECTED THE INFINITE-LOAD BUG  !!" -ForegroundColor Red
-            Write-Host "     The game is stuck re-initializing ($initCount times and counting)." -ForegroundColor Yellow
-            Write-Host "     It will NOT finish on its own. Here's the fix:" -ForegroundColor Yellow
+            Write-Host "     Found the stuck-loading issue - and it's fixable." -ForegroundColor Yellow
+            Write-Host "     The game keeps restarting its world-load ($initCount times so far), so it" -ForegroundColor Gray
+            Write-Host "     won't finish on its own. This is a known problem with an easy fix:" -ForegroundColor Gray
+            Write-Host ""
             Write-Host "       1. Close the game." -ForegroundColor White
-            Write-Host "       2. Back at the menu, pick '4) Fix common problems'." -ForegroundColor White
-            Write-Host "       3. Launch again - it'll load normally this time." -ForegroundColor White
-            Write-Host "`n     Press Enter to go back." -ForegroundColor Gray
+            Write-Host "       2. Back at the menu, run option 4 (FIX my dependencies)," -ForegroundColor White
+            Write-Host "          then option 5 (Fix common problems)." -ForegroundColor White
+            Write-Host "       3. Launch again - it'll load properly this time." -ForegroundColor White
+            Write-Host "`n     Press Enter to go back to the menu." -ForegroundColor DarkGray
             $null = Read-Host; break
         }
 

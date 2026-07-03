@@ -93,9 +93,9 @@ function Test-RotInstall {
     if (Test-Path (Join-Path $Game.BinPath 'Bannerlord.BLSE.LauncherEx.exe')) { Add 'BLSE launcher' 'OK' 'present' 'none' }
     else { Add 'BLSE launcher' 'MISSING' 'BLSE not installed - download required' 'manual' }
 
-    # 5) Shader-cache crash risk (present .sack = potential 0xC0000005)
-    $sack = @('ROT-Content','ROT_Map') | ForEach-Object { Join-Path $mods "$_\Shaders\D3D11\compressed_shader_cache.sack" } |
-            Where-Object { Test-Path $_ }
+    # 5) Shader-cache crash risk (present .sack = potential 0xC0000005).
+    #    Uses the same path list FixCrash actually clears, so detection == repair.
+    $sack = @(Get-ShaderCachePaths -ModulesPath $mods | Where-Object { Test-Path $_ })
     if ($sack) { Add 'Shader cache' 'FIXABLE' "$($sack.Count) precompiled .sack present - crash risk, clear to rebuild" 'auto' }
     else { Add 'Shader cache' 'OK' 'clean (engine rebuilds)' 'none' }
 
@@ -104,10 +104,8 @@ function Test-RotInstall {
 
 function Format-Findings {
     param([Parameter(Mandatory)] $Findings)
-    $icon = @{ OK='[ OK ]'; WARN='[WARN]'; MISSING='[MISS]'; MISPLACED='[MOVE]'; FIXABLE='[FIX ]' }
-    $col  = @{ OK='Green'; WARN='Yellow'; MISSING='Red'; MISPLACED='Yellow'; FIXABLE='Cyan' }
     foreach ($x in $Findings) {
-        Write-Host ("  {0} {1,-22} {2}" -f $icon[$x.Status], $x.Item, $x.Detail) -ForegroundColor $col[$x.Status]
+        Write-Host ("  {0} {1,-22} {2}" -f (Get-StatusIcon $x.Status), $x.Item, $x.Detail) -ForegroundColor (Get-StatusColor $x.Status)
     }
     $auto = @($Findings | Where-Object { $_.Fix -eq 'auto' }).Count
     $man  = @($Findings | Where-Object { $_.Fix -eq 'manual' }).Count

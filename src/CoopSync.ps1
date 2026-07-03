@@ -115,25 +115,25 @@ function Compare-CoopProfile {
     Write-Host "  ------------------------------------------" -ForegroundColor DarkGray
 
     # game version
-    if ($Game.Version -eq $friendVer) { Write-Host "  [ OK ] Game version matches ($($Game.Version))" -ForegroundColor Green }
-    else { Write-Host "  [DIFF] Game version: you=$($Game.Version)  friend=$friendVer  -> you must match" -ForegroundColor Red }
+    if ($Game.Version -eq $friendVer) { Write-Host ("  {0} Game version matches ($($Game.Version))" -f (Get-StatusIcon 'OK')) -ForegroundColor (Get-StatusColor 'OK') }
+    else { Write-Host ("  {0} Game version: you=$($Game.Version)  friend=$friendVer  -> you must match" -f (Get-StatusIcon 'STOP')) -ForegroundColor (Get-StatusColor 'STOP') }
 
     $problems = 0
     # every mod the friend has (base-game modules skipped - they always match)
     foreach ($id in ($friend.Keys | Sort-Object)) {
         if ($id -in $script:CoopBaseModules) { continue }
         if (-not $mine.ContainsKey($id)) {
-            Write-Host ("  [MISS] {0} -- friend has it ({1}), you don't. Install it." -f $id, (Format-Ver $friend[$id])) -ForegroundColor Red; $problems++
+            Write-Host ("  {0} {1} -- friend has it ({2}), you don't. Install it." -f (Get-StatusIcon 'MISSING'), $id, (Format-Ver $friend[$id])) -ForegroundColor (Get-StatusColor 'MISSING'); $problems++
         } elseif (($mine[$id] -replace '^[ve]','') -ne ($friend[$id] -replace '^[ve]','')) {
-            Write-Host ("  [DIFF] {0} -- you {1}, friend {2}. Match versions." -f $id, (Format-Ver $mine[$id]), (Format-Ver $friend[$id])) -ForegroundColor Yellow; $problems++
+            Write-Host ("  {0} {1} -- you {2}, friend {3}. Match versions." -f (Get-StatusIcon 'DIFF'), $id, (Format-Ver $mine[$id]), (Format-Ver $friend[$id])) -ForegroundColor (Get-StatusColor 'DIFF'); $problems++
         } else {
-            Write-Host ("  [ OK ] {0} {1}" -f $id, (Format-Ver $mine[$id])) -ForegroundColor Green
+            Write-Host ("  {0} {1} {2}" -f (Get-StatusIcon 'OK'), $id, (Format-Ver $mine[$id])) -ForegroundColor (Get-StatusColor 'OK')
         }
     }
     # extra mods you have that the friend doesn't (can also break co-op)
     foreach ($id in ($mine.Keys | Sort-Object)) {
         if (-not $friend.ContainsKey($id) -and $id -notin $script:CoopBaseModules) {
-            Write-Host ("  [EXTRA] {0} -- you have it, friend doesn't. Consider disabling it." -f $id) -ForegroundColor Yellow; $problems++
+            Write-Host ("  {0} {1} -- you have it, friend doesn't. Consider disabling it." -f (Get-StatusIcon 'EXTRA'), $id) -ForegroundColor (Get-StatusColor 'EXTRA'); $problems++
         }
     }
 

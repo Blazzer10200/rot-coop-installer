@@ -36,7 +36,7 @@ function Invoke-Preflight {
     }
 
     # 6) ROT modules present
-    $rot = @('ROT-Core','ROT-Content','ROT_Map','ROT-Dragon') | Where-Object { Test-Path (Join-Path $Game.ModulesPath "$_\SubModule.xml") }
+    $rot = @(Get-RotModuleNames | Where-Object { Test-Path (Join-Path $Game.ModulesPath "$_\SubModule.xml") })
     Chk 'Realm of Thrones installed' ($rot.Count -ge 3) $(if($rot.Count -ge 3){"$($rot.Count)/4 ROT modules"}else{"only $($rot.Count)/4 ROT modules found"})
 
     # 6b) ROT string XML clean? Duplicate <string id> in the GameText files causes the
@@ -58,7 +58,7 @@ function Invoke-Preflight {
     Chk 'Co-op mod installed' $bt $(if($bt){'present'}else{'BannerlordTogether.dll missing from its bin folder'})
 
     # 8) Shader-cache crash risk (warning, not a hard blocker - repair clears it)
-    $sack = @('ROT-Content','ROT_Map') | ForEach-Object { Join-Path $Game.ModulesPath "$_\Shaders\D3D11\compressed_shader_cache.sack" } | Where-Object { Test-Path $_ }
+    $sack = @(Get-ShaderCachePaths -ModulesPath $Game.ModulesPath | Where-Object { Test-Path $_ })
     Chk 'No stale shader cache' ($sack.Count -eq 0) $(if($sack.Count){"$($sack.Count) precompiled cache(s) present - can cause a crash; run Fix to clear"}else{'clean'}) $false
 
     $checks
@@ -73,9 +73,8 @@ function Show-Preflight {
         Write-Host "  Pre-launch check" -ForegroundColor Cyan
         Write-Host "  ----------------" -ForegroundColor DarkGray
         foreach ($c in $all) {
-            $mark = if ($c.Pass) { '[ OK ]' } elseif ($c.Blocker) { '[STOP]' } else { '[warn]' }
-            $col  = if ($c.Pass) { 'Green' } elseif ($c.Blocker) { 'Red' } else { 'Yellow' }
-            Write-Host ("  {0} {1,-26} {2}" -f $mark, $c.Name, $c.Detail) -ForegroundColor $col
+            $status = if ($c.Pass) { 'OK' } elseif ($c.Blocker) { 'STOP' } else { 'WARN' }
+            Write-Host ("  {0} {1,-26} {2}" -f (Get-StatusIcon $status), $c.Name, $c.Detail) -ForegroundColor (Get-StatusColor $status)
         }
         $blockers = @($all | Where-Object { -not $_.Pass -and $_.Blocker })
         Write-Host ""

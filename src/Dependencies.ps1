@@ -55,16 +55,15 @@ function Test-Dependencies {
             }
             else {
                 $ver = ([regex]::Match((Get-Content (Join-Path $folder 'SubModule.xml') -Raw), '<Version\s*value\s*=\s*"([^"]+)"')).Groups[1].Value
-                $ver = $ver -replace '^v',''   # SubModule versions already carry a 'v'
+                $ver = $ver -replace '^[ve]',''   # strip v/e prefix (e = early-access marker), same as everywhere else
                 # STUB CHECK: ModReady/BetaDeps ships BetaDeps.*.dll stand-ins instead of the
                 # real BUTR libraries. They reach the main menu but (when built for a different
                 # game version) silently break campaign init -> the endless new-game loop.
-                $binDir = Join-Path $folder 'bin\Win64_Shipping_Client'
-                $isStub = (Test-Path (Join-Path $binDir 'BetaDeps.Foundation.dll')) -or (Test-Path (Join-Path $binDir 'BetaDeps.Harmony.dll'))
-                if ($isStub) {
+                # (Test-IsStubDep lives in Common.ps1 - single source of truth.)
+                if (Test-IsStubDep $folder) {
                     $state='STUB'
-                    $detail="installed (v$ver) but this is a ModReady/BetaDeps STUB, not the official BUTR library"
-                    $advice="Stubs reach the menu but can loop forever on a new campaign. Replace with the OFFICIAL $($d.Name) from $($d.Nexus) (extract its '$($d.Module)' folder over this one)."
+                    $detail="installed (v$ver) but this is a ModReady/BetaDeps STUB, not the official library"
+                    $advice="Stubs reach the menu but can loop forever on a new campaign. Fix all deps in one click with menu option 4 (FIX my dependencies)."
                 } else {
                     $detail = "installed (v$ver, official)"
                 }
@@ -85,15 +84,13 @@ function Show-Dependencies {
     process { foreach ($x in $Findings) { $all.Add($x) } }
     end {
     $Findings = $all
-    $icon=@{OK='[ OK ]';MISSING='[MISS]';INCOMPLETE='[PART]';BROKEN='[BAD ]';STUB='[STUB]'}
-    $col =@{OK='Green';MISSING='Red';INCOMPLETE='Yellow';BROKEN='Yellow';STUB='Red'}
     Write-Host ""
     Write-Host "  Checking your mod dependencies..." -ForegroundColor Cyan
     Write-Host "  (These are the helper mods ROT and co-op need to run.)" -ForegroundColor DarkGray
     Write-Host ""
     foreach ($f in $Findings) {
         $tag = if ($f.Optional -and $f.State -ne 'OK') { ' (optional)' } else { '' }
-        Write-Host ("  {0} {1,-14} {2}{3}" -f $icon[$f.State], $f.Name, $f.Detail, $tag) -ForegroundColor $col[$f.State]
+        Write-Host ("  {0} {1,-14} {2}{3}" -f (Get-StatusIcon $f.State), $f.Name, $f.Detail, $tag) -ForegroundColor (Get-StatusColor $f.State)
         if ($f.State -ne 'OK') {
             Write-Host ("           why it matters: {0}" -f $f.Why) -ForegroundColor DarkGray
             Write-Host ("           what to do:     {0}" -f $f.Advice) -ForegroundColor Gray

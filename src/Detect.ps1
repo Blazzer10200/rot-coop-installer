@@ -55,6 +55,6 @@ function Find-Bannerlord {
         VersionNorm  = $versionNorm
         WarSails     = $warSails
         ConfigPath   = Join-Path ([Environment]::GetFolderPath('MyDocuments')) "Mount and Blade II Bannerlord\Configs\LauncherData.xml"
-        ProgramData  = "C:\ProgramData\Mount and Blade II Bannerlord"
+        ProgramData  = (Get-BannerlordProgramData)
     }
 }
