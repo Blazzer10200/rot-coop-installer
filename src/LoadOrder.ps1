@@ -20,7 +20,11 @@ function Write-LoadOrder {
     }
 
     $ver   = $Prof.gameVersion
-    $order = $Prof.loadOrder
+    # Only write modules that actually exist on THIS machine. The profile's full list
+    # includes optional pieces (e.g. BannerlordTogether for a solo-only player) - listing
+    # a module the launcher can't find just invites it to rewrite the file again.
+    $order = @($Prof.loadOrder | Where-Object { Test-Path (Join-Path $Game.ModulesPath $_) })
+    $skipped = @($Prof.loadOrder | Where-Object { $_ -notin $order })
 
     $sb = New-Object System.Text.StringBuilder
     [void]$sb.AppendLine('<?xml version="1.0" encoding="utf-8"?>')
@@ -39,5 +43,5 @@ function Write-LoadOrder {
     [void]$sb.AppendLine('</UserData>')
 
     [System.IO.File]::WriteAllText($cfg, $sb.ToString(), [System.Text.UTF8Encoding]::new($false))
-    "Load order reset: $($order.Count) modules enabled, correct order (backup saved)."
+    "Load order reset: $($order.Count) modules enabled, correct order (backup saved)$(if ($skipped) { ", skipped not-installed: $($skipped -join ', ')" })."
 }

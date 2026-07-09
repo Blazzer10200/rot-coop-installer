@@ -3,6 +3,60 @@
 # modules (the ROT module names, the dependency names, the stub-detection test, the
 # shader-cache paths). Change them here, everywhere follows.
 
+# Force TLS 1.2 into the allowed protocols. Fresh Windows 10 boxes running PS 5.1 can
+# still default .NET to TLS 1.0/1.1, and GitHub refuses those - downloads then die with
+# "could not create SSL/TLS secure channel" on OTHER people's machines while working
+# fine on an up-to-date one. -bor keeps whatever newer protocols the OS already allows.
+try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch {}
+
+# ---- Tool settings (persisted per-user, survives tool updates) ----
+# Lives in LocalAppData, NOT the tool folder: the tool may sit somewhere read-only
+# (Program Files, a zip mounted read-only) and settings must not depend on that.
+function Get-ToolSettingsPath { Join-Path $env:LOCALAPPDATA 'rot-coop-tool\settings.json' }
+
+function Get-ToolSettings {
+    $p = Get-ToolSettingsPath
+    if (Test-Path $p) {
+        try { return (Get-Content $p -Raw | ConvertFrom-Json) } catch { }
+    }
+    $null
+}
+
+function Save-ToolSetting {
+    param([Parameter(Mandatory)][string] $Name, [Parameter(Mandatory)] $Value)
+    $p = Get-ToolSettingsPath
+    New-Item -ItemType Directory -Force -Path (Split-Path $p) | Out-Null
+    $s = Get-ToolSettings
+    if (-not $s) { $s = [pscustomobject]@{} }
+    if ($s.PSObject.Properties[$Name]) { $s.$Name = $Value }
+    else { $s | Add-Member -NotePropertyName $Name -NotePropertyValue $Value }
+    [System.IO.File]::WriteAllText($p, ($s | ConvertTo-Json), [System.Text.UTF8Encoding]::new($false))
+}
+
+# Can we write where the mods live? Steam grants Users write on steamapps, but GOG/Epic
+# installs under Program Files often need admin - probe BEFORE a repair half-completes.
+function Test-FolderWritable {
+    param([Parameter(Mandatory)][string] $Path)
+    try {
+        $probe = Join-Path $Path ('.rot_write_probe_' + [Guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $probe -ErrorAction Stop | Out-Null
+        Remove-Item $probe -Force -ErrorAction SilentlyContinue
+        $true
+    } catch { $false }
+}
+
+# Where to tell the user to get game version X - the fix differs per store.
+function Get-VersionFixAdvice {
+    param($Game, [string] $WantShort = '1.3.15')
+    switch ("$($Game.Platform)") {
+        'steam' { "set to $WantShort in Steam > right-click the game > Properties > Betas" }
+        'gog'   { "install the $WantShort build from GOG (Galaxy: game > settings > Manage installation > Configure > Beta channels, or use the offline installer for $WantShort)" }
+        'epic'  { "install the $WantShort build from the Epic Games launcher" }
+        'xbox'  { "Game Pass only ships the newest build - if $WantShort isn't offered, this mod stack can't run on the Game Pass copy" }
+        default { "install game version $WantShort for your store (Steam: Properties > Betas)" }
+    }
+}
+
 # The four Realm of Thrones module folders (ROT_Map uses an underscore - it's the
 # module's internal Id, and the folder must match it).
 function Get-RotModuleNames { @('ROT-Core','ROT-Content','ROT_Map','ROT-Dragon') }
@@ -130,7 +184,8 @@ function Get-ShaderCachePaths {
 }
 
 # Bannerlord's ProgramData folder (logs + global shader cache live here).
-function Get-BannerlordProgramData { 'C:\ProgramData\Mount and Blade II Bannerlord' }
+# $env:ProgramData, not a hardcoded C:\ - Windows can live on any drive.
+function Get-BannerlordProgramData { Join-Path $env:ProgramData 'Mount and Blade II Bannerlord' }
 
 # ---- Consistent status presentation (one look across every report) ----
 # Severity ladder used everywhere:

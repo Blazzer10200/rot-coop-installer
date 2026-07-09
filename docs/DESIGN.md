@@ -2,7 +2,7 @@
 title: ROT Co-op Installer — Design Spec
 tags: [design, gaming, bannerlord, tool]
 status: draft
-updated: 2026-07-02
+updated: 2026-07-09
 ---
 
 # Realm of Thrones Co-op Installer — Design Spec
@@ -108,9 +108,13 @@ Tail `C:\ProgramData\Mount and Blade II Bannerlord\logs\rgl_log_*.txt` during lo
 7. [DONE] Auto-repair dependencies (download official BUTR deps + MCM from GitHub, replace stubs)
 8. [DONE] Startup "what should I do next?" recommendation (self-triage for non-technical users)
 9. [DONE] VERIFIED end-to-end on a real machine - solo AND co-op both confirmed working
-10. [TODO] Guided install flow for the MODS themselves (point at ROT/BLSE archives -> auto-place)
-11. [TODO] Package as single .exe (ps2exe)
-12. [TODO] v2 WPF GUI wrapper
+10. [DONE] Portability pass (2026-07-09): multi-store detection (Steam registry+VDF / GOG /
+    Epic / Game Pass / manual+remembered path), BLSE auto-install from GitHub, store-aware
+    checks + advice, PS 5.1 download hardening (TLS 1.2, -UseBasicParsing), write-permission
+    probe, moduleIdFixups auto-rename, load order filtered to installed modules, profile picker
+11. [TODO] Guided install flow for the MODS themselves (point at ROT archives -> auto-place)
+12. [TODO] Package as single .exe (ps2exe)
+13. [TODO] v2 WPF GUI wrapper
 
 ## Implemented modules (v1, all tested against a real install)
 - Common.ps1         - single source of truth: ROT/dep module lists, stub detection, shader-cache paths, status icon+color styling
@@ -135,3 +139,26 @@ Tail `C:\ProgramData\Mount and Blade II Bannerlord\logs\rgl_log_*.txt` during lo
   without launching the menu.
 - $Profile is a reserved automatic var - profile params are named $Prof.
 - Version strings carry a leading 'v'; Format-Ver normalizes to avoid 'vv2.10' display bugs.
+
+## Portability notes (the "other people's machines" pass, 2026-07-09)
+- **Detection order:** saved custom path -> Steam (registry roots + every libraryfolders.vdf
+  entry) -> GOG (registry, both hives) -> Epic (ProgramData manifests) -> XboxGames\*\Content
+  on every drive. A root qualifies if it has a client bin + Modules. Game Pass uses
+  bin\Gaming.Desktop.x64_Shipping_Client - BinPath resolves to whichever bin exists, and
+  everything downstream uses $Game.BinPath, never a hardcoded bin name.
+- **$Game.Platform** drives store-specific behavior: the Steam-running check only fires for
+  Steam copies; version-fix advice is store-specific (Get-VersionFixAdvice).
+- **Settings** persist in LocalAppData (rot-coop-tool\settings.json), NOT the tool folder -
+  the tool may run from a read-only location.
+- **PS 5.1 download hardening:** TLS 1.2 forced via -bor (fresh Win10 can still default to
+  TLS 1.0 and GitHub refuses it); every Invoke-WebRequest uses -UseBasicParsing (without it,
+  machines that never ran IE die with "Internet Explorer engine is not available").
+- **Write-permission probe** (Test-FolderWritable) runs before any repair: Steam libraries
+  are user-writable, GOG/Epic under Program Files often are not - fail early with a plain
+  "run Start.bat as administrator" instead of dying halfway through a replace.
+- **ROT version stamps:** some ROT uploads put the GAME version (v1.3.15.3) in
+  SubModule.xml. Real ROT majors are 5-8; anything below that is treated as a game-version
+  stamp and the edition comes from the ROT.dll NavalDLC string probe instead.
+- **BLSE auto-install:** BUTR/Bannerlord.BLSE releases on GitHub (asset Bannerlord.BLSE.7z,
+  verified live). Its archive root is bin\ and merges onto the GAME root file-by-file
+  (Copy-Item -Recurse onto an existing tree has nesting quirks).

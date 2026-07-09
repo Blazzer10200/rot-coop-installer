@@ -13,18 +13,24 @@ function Invoke-Preflight {
         $checks.Add([pscustomobject]@{ Name=$name; Pass=[bool]$pass; Detail=$detail; Blocker=$blocker })
     }
 
-    # 1) Game version
-    $verOk = ($Game.VersionNorm -match '^1\.3\.15')
-    Chk 'Game version 1.3.15' $verOk $(if($verOk){"OK ($($Game.Version))"}else{"is $($Game.Version) - set to 1.3.15 in Steam > Betas"})
+    # 1) Game version (target comes from the profile; advice adapts to the store)
+    $wantShort = if ($Prof -and $Prof.gameVersionShort) { [string]$Prof.gameVersionShort } else { '1.3.15' }
+    $verOk = ($Game.VersionNorm -match ('^' + [regex]::Escape($wantShort)))
+    Chk "Game version $wantShort" $verOk $(if($verOk){"OK ($($Game.Version))"}else{"is $($Game.Version) - $(Get-VersionFixAdvice $Game $wantShort)"})
 
     # 2) War Sails OFF (enabled state, not mere ownership - owning it with the launcher
     #    toggle off is harmless)
     $wsOn = if ($Game.PSObject.Properties['WarSailsEnabled']) { $Game.WarSailsEnabled } else { $Game.WarSails }
     Chk 'War Sails DLC off' (-not $wsOn) $(if($wsOn){'War Sails is ENABLED - turn it off in the launcher Mods tab (or Steam > Properties > DLC)'}else{'off (correct)'})
 
-    # 3) Steam running (the instant-close gotcha)
-    $steam = [bool](Get-Process -Name steam -ErrorAction SilentlyContinue)
-    Chk 'Steam is running' $steam $(if($steam){'running'}else{'NOT running - start Steam & log in first, or the game closes instantly'})
+    # 3) Steam running (the instant-close gotcha) - Steam copies only; GOG/Epic/Game
+    #    Pass launch without it (their co-op then joins by IP instead of Steam lobby).
+    if ("$($Game.Platform)" -in @('gog','epic','xbox')) {
+        Chk 'Game platform' $true "$($Game.Platform) copy - Steam not required" $false
+    } else {
+        $steam = [bool](Get-Process -Name steam -ErrorAction SilentlyContinue)
+        Chk 'Steam is running' $steam $(if($steam){'running'}else{'NOT running - start Steam & log in first, or the game closes instantly'})
+    }
 
     # 4) BLSE present
     $blse = Test-Path (Join-Path $Game.BinPath 'Bannerlord.BLSE.LauncherEx.exe')

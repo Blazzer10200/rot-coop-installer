@@ -21,6 +21,14 @@ function Get-OfficialDepSources {
     )
 }
 
+# BLSE itself is also on GitHub (BUTR/Bannerlord.BLSE) - asset verified live 2026-07-09.
+# It installs differently from the deps: its archive root is 'bin\...' and merges onto
+# the GAME root, not \Modules\ (it ships launchers for both the Steam/GOG/Epic bin and
+# the Game Pass bin).
+function Get-BlseSource {
+    @{ Name='BLSE'; Repo='BUTR/Bannerlord.BLSE'; Tag='v1.6.7'; Asset='Bannerlord.BLSE.7z' }
+}
+
 # Turn a raw download/network exception into a plain-English reason a gamer can act on.
 function Format-DownloadError($err) {
     $m = "$($err.Exception.Message)"
@@ -53,7 +61,9 @@ function Resolve-AssetUrl {
     param([string]$Repo, [string]$Tag, [string]$Asset)
     $direct = "https://github.com/$Repo/releases/download/$Tag/$Asset"
     try {
-        $h = Invoke-WebRequest -Uri $direct -Method Head -Headers @{ 'User-Agent'='rot-tool' } -TimeoutSec 20 -ErrorAction Stop
+        # -UseBasicParsing: without it, PS 5.1 on machines that never ran Internet
+        # Explorer dies with "the Internet Explorer engine is not available". No-op on PS7.
+        $h = Invoke-WebRequest -Uri $direct -Method Head -Headers @{ 'User-Agent'='rot-tool' } -TimeoutSec 20 -UseBasicParsing -ErrorAction Stop
         return $direct
     } catch {
         try {
@@ -98,6 +108,14 @@ function Repair-Dependencies {
         return $report
     }
 
+    # 1b) can we actually write where the mods go? Steam libraries are user-writable,
+    # but GOG/Epic installs under Program Files often are not - fail loud and early
+    # with the actual fix instead of dying halfway through a replace.
+    if (-not (Test-FolderWritable $mods)) {
+        $report.Add("STOPPED: no permission to write into the game's Modules folder ($mods). Close this window and run Start.bat as administrator (right-click it > Run as administrator), then run this again.")
+        return $report
+    }
+
     $work = Join-Path $env:TEMP "rot_dep_repair"
     if (Test-Path $work) { Get-ChildItem $work -Recurse -Force | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue }
     New-Item -ItemType Directory -Force -Path $work | Out-Null
@@ -121,7 +139,7 @@ function Repair-Dependencies {
         if (-not $url) { $report.Add("$($dep.Name): couldn't find a download link (skipped). $manual"); continue }
         $arc = Join-Path $work "$($dep.Name).7z"
         try {
-            Invoke-WebRequest -Uri $url -OutFile $arc -Headers @{ 'User-Agent'='rot-tool' } -TimeoutSec 120 -ErrorAction Stop
+            Invoke-WebRequest -Uri $url -OutFile $arc -Headers @{ 'User-Agent'='rot-tool' } -TimeoutSec 120 -UseBasicParsing -ErrorAction Stop
         } catch {
             $why = Format-DownloadError $_
             $report.Add("$($dep.Name): download failed - $why. $manual"); continue
@@ -151,6 +169,43 @@ function Repair-Dependencies {
         $ver = ([regex]::Match((Get-Content (Join-Path $dst 'SubModule.xml') -Raw),'<Version value="([^"]+)"')).Groups[1].Value
         $what = if ($isStub) { "replaced STUB with official" } elseif ($exists) { "reinstalled official" } else { "installed official" }
         $report.Add("$($dep.Name): $what $ver")
+    }
+
+    # --- BLSE: the launcher itself (used to be a manual Nexus download - the single most
+    # common missing piece on a fresh setup). Merges the archive's bin\ onto the game root.
+    $blseExe = Join-Path $Game.BinPath 'Bannerlord.BLSE.LauncherEx.exe'
+    if ((Test-Path $blseExe) -and -not $Force) {
+        $report.Add("BLSE: already installed - left as-is.")
+    } else {
+        $blse = Get-BlseSource
+        $manual = "Download it yourself from https://github.com/$($blse.Repo)/releases/tag/$($blse.Tag) and extract it onto the game folder so the 'bin' folders merge."
+        $url = Resolve-AssetUrl -Repo $blse.Repo -Tag $blse.Tag -Asset $blse.Asset
+        if (-not $url) { $report.Add("BLSE: couldn't find a download link (skipped). $manual") }
+        else {
+            $arc = Join-Path $work 'BLSE.7z'
+            $ok = $true
+            try {
+                Invoke-WebRequest -Uri $url -OutFile $arc -Headers @{ 'User-Agent'='rot-tool' } -TimeoutSec 120 -UseBasicParsing -ErrorAction Stop
+            } catch { $report.Add("BLSE: download failed - $(Format-DownloadError $_). $manual"); $ok = $false }
+            if ($ok) {
+                $ex = Join-Path $work 'BLSE'
+                & $sz x $arc "-o$ex" -y 2>&1 | Out-Null
+                if ($LASTEXITCODE -ne 0) { $report.Add("BLSE: couldn't unzip the download (7-Zip error $LASTEXITCODE). $manual") }
+                elseif (-not (Test-Path (Join-Path $ex 'bin'))) { $report.Add("BLSE: archive layout unexpected (no 'bin' folder inside - skipped). $manual") }
+                else {
+                    # merge file-by-file: Copy-Item -Recurse onto an existing tree has
+                    # nesting quirks, and the game's own bin\ files must never be touched
+                    Get-ChildItem (Join-Path $ex 'bin') -Recurse -File | ForEach-Object {
+                        $rel = $_.FullName.Substring($ex.Length).TrimStart('\')
+                        $dest = Join-Path $Game.Path $rel
+                        New-Item -ItemType Directory -Force -Path (Split-Path $dest) | Out-Null
+                        Copy-Item -LiteralPath $_.FullName -Destination $dest -Force
+                    }
+                    if (Test-Path $blseExe) { $report.Add("BLSE: installed $($blse.Tag) (launch through it from now on).") }
+                    else { $report.Add("BLSE: copied, but the launcher still isn't where expected. $manual") }
+                }
+            }
+        }
     }
 
     $report.Add("Done. Backups (if any) are in $BackupRoot\deps_replaced. Now run 'Fix common problems' once more to reset the load order, then launch.")

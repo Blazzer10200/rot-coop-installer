@@ -12,6 +12,33 @@ function Repair-RotInstall {
     New-Item -ItemType Directory -Force -Path $BackupRoot | Out-Null
     $report = [System.Collections.Generic.List[string]]::new()
 
+    # --- FIX 0a: bail early (and loudly) if we can't write into the game folder.
+    # Steam libraries are user-writable; GOG/Epic under Program Files often are not.
+    if (-not (Test-FolderWritable $Game.ModulesPath)) {
+        $report.Add("STOPPED: no permission to write into the game folder ($($Game.ModulesPath)). Close this window and run Start.bat as administrator (right-click it > Run as administrator), then run this again.")
+        return $report
+    }
+
+    # --- FIX 0b: module folders whose name doesn't match their internal Id ---
+    # ROT ships 'ROT-Map' but the module's Id is 'ROT_Map'; the engine resolves modules
+    # by folder name, so the mismatch breaks dependency resolution. The profile lists
+    # these fixups - the old code only FLAGGED them; repair now actually renames.
+    if ($Prof -and $Prof.moduleIdFixups) {
+        foreach ($old in $Prof.moduleIdFixups.PSObject.Properties.Name) {
+            $newName = $Prof.moduleIdFixups.$old
+            $src = Join-Path $Game.ModulesPath $old
+            $dst = Join-Path $Game.ModulesPath $newName
+            if ((Test-Path $src) -and -not (Test-Path $dst)) {
+                try {
+                    Rename-Item -LiteralPath $src -NewName $newName -ErrorAction Stop
+                    $report.Add("Folder renamed: $old -> $newName (folder must match the module's internal Id)")
+                } catch {
+                    $report.Add("Folder rename FAILED ($old -> $newName): $($_.Exception.Message). Rename it by hand in \Modules\.")
+                }
+            }
+        }
+    }
+
     # --- FIX 1: invalid shader caches (the 0xC0000005 native crash) ---
     $shaderTargets = Get-ShaderCachePaths -ModulesPath $Game.ModulesPath
     $shaderCount = 0
@@ -73,9 +100,14 @@ function Repair-RotInstall {
     foreach ($line in (Test-DepHealth -Game $Game)) { $report.Add($line) }
 
     # --- CHECK 7: Steam running? (the 'Unable to initialize Steam API' gotcha) ---
-    $steam = Get-Process -Name "steam" -ErrorAction SilentlyContinue
-    if ($steam) { $report.Add("Steam: RUNNING (good)") }
-    else { $report.Add("Steam: NOT RUNNING -- start Steam and log in BEFORE launching, or you get 'Unable to initialize Steam API'") }
+    # Only relevant for Steam copies; GOG/Epic/Game Pass launch without Steam.
+    if ("$($Game.Platform)" -in @('gog','epic','xbox')) {
+        $report.Add("Platform: $($Game.Platform) copy detected - Steam not required to launch.")
+    } else {
+        $steam = Get-Process -Name "steam" -ErrorAction SilentlyContinue
+        if ($steam) { $report.Add("Steam: RUNNING (good)") }
+        else { $report.Add("Steam: NOT RUNNING -- start Steam and log in BEFORE launching, or you get 'Unable to initialize Steam API'") }
+    }
 
     $report
 }

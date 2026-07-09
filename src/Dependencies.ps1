@@ -34,7 +34,7 @@ function Test-Dependencies {
             # BLSE lives in the game bin, not Modules
             if (Test-Path (Join-Path $bin $d.KeyDll)) { $detail='installed correctly' }
             else { $state='MISSING'; $detail='not found in game bin folder'
-                   $advice="Download $($d.Name) and extract so its 'bin' folder merges into the game folder. Get it: $($d.Nexus)" }
+                   $advice="Menu option 4 (FIX my dependencies) installs BLSE automatically. Or manually: download it and extract so its 'bin' folder merges into the game folder ($($d.Nexus))." }
         }
         else {
             $folder = Join-Path $mods $d.Module

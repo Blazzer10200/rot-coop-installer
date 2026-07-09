@@ -45,10 +45,22 @@ function Get-GameOrExplain {
         Write-Host ""
         Write-Host "  Could not find Mount & Blade II: Bannerlord on this PC." -ForegroundColor Yellow
         Write-Host ""
-        Write-Host "  This tool looks for the game in your Steam library folders. Make sure:" -ForegroundColor Gray
-        Write-Host "    - the game is installed through Steam, and" -ForegroundColor Gray
-        Write-Host "    - Steam has finished installing it (not just queued)." -ForegroundColor Gray
-        Write-Host "  Then run this tool again." -ForegroundColor Gray
+        Write-Host "  I checked: Steam (every library folder), GOG, Epic, and Xbox/Game Pass." -ForegroundColor Gray
+        Write-Host "  If the game IS installed somewhere unusual, paste its folder below and" -ForegroundColor Gray
+        Write-Host "  I'll remember it - it's the folder that contains 'bin' and 'Modules'," -ForegroundColor Gray
+        Write-Host "  e.g.  D:\Games\Mount & Blade II Bannerlord" -ForegroundColor DarkGray
+        Write-Host ""
+        $p = (Read-Host "  Game folder (or just press Enter to close)").Trim('"',' ')
+        if (-not $p) { return $null }
+        if (Test-BannerlordRoot $p) {
+            Save-ToolSetting -Name 'gamePath' -Value $p
+            Write-Host ""
+            Write-Host "  Found it - saved for next time." -ForegroundColor Green
+            return (Find-Bannerlord)
+        }
+        Write-Host ""
+        Write-Host "  That folder doesn't look like a Bannerlord install (no bin\ + Modules\ inside)." -ForegroundColor Red
+        Write-Host "  Double-check the path and run the tool again." -ForegroundColor Gray
         Write-Host ""
         Write-Host "  Press Enter to close..." -ForegroundColor DarkGray
         $null = Read-Host
@@ -60,9 +72,9 @@ function Get-GameOrExplain {
 function Show-Status($g, $prof) {
     $verOk = $g.VersionNorm -match '^1\.3\.15'
     Write-Host ""
-    Write-Host "  Game folder:  $($g.Path)" -ForegroundColor Gray
+    Write-Host "  Game folder:  $($g.Path)$(if ($g.Platform) { "  [$($g.Platform)]" })" -ForegroundColor Gray
     if ($verOk) { Write-Host "  Version:      $($g.Version)  (correct for co-op)" -ForegroundColor Green }
-    else        { Write-Host "  Version:      $($g.Version)  -- you need 1.3.15 (Steam > right-click game > Properties > Betas)" -ForegroundColor Yellow }
+    else        { Write-Host "  Version:      $($g.Version)  -- you need 1.3.15: $(Get-VersionFixAdvice $g '1.3.15')" -ForegroundColor Yellow }
     if ($g.WarSailsEnabled) { Write-Host "  War Sails:    ENABLED  -- turn it OFF for co-op (launcher Mods tab / Properties > DLC)" -ForegroundColor Yellow }
     elseif ($g.WarSails)    { Write-Host "  War Sails:    installed but off (fine)" -ForegroundColor Green }
     else                    { Write-Host "  War Sails:    off (correct)" -ForegroundColor Green }
@@ -91,8 +103,8 @@ function Show-Recommendation($g, $prof) {
 
     Write-Host ""
     if (-not $verOk) {
-        Write-Host "  >> START HERE: your game isn't on 1.3.15. In Steam, right-click the game >" -ForegroundColor Yellow
-        Write-Host "     Properties > Betas > pick 1.3.15. Then come back." -ForegroundColor Yellow
+        Write-Host "  >> START HERE: your game isn't on 1.3.15." -ForegroundColor Yellow
+        Write-Host "     Fix: $(Get-VersionFixAdvice $g '1.3.15'). Then come back." -ForegroundColor Yellow
     }
     elseif ($rotCount -lt 3) {
         Write-Host "  >> START HERE: Realm of Thrones isn't installed yet ($rotCount/4 modules found)." -ForegroundColor Yellow
@@ -109,8 +121,8 @@ function Show-Recommendation($g, $prof) {
         Write-Host "     Install ROT $wantRot (the 'ROT $wantRot for Bannerlord 1.3.15' file), then option 3 to re-check." -ForegroundColor Yellow
     }
     elseif (-not $blse) {
-        Write-Host "  >> START HERE: BLSE (the launcher ROT needs) isn't installed. Pick option 3" -ForegroundColor Yellow
-        Write-Host "     for the download link, install it, then come back." -ForegroundColor Yellow
+        Write-Host "  >> START HERE: BLSE (the launcher ROT needs) isn't installed. Pick option 4" -ForegroundColor Yellow
+        Write-Host "     (FIX my dependencies) - it downloads and installs BLSE for you." -ForegroundColor Yellow
     }
     elseif ($stub -or -not $mcm) {
         Write-Host "  >> RECOMMENDED: your dependencies look wrong -" -ForegroundColor Yellow
@@ -125,11 +137,31 @@ function Show-Recommendation($g, $prof) {
 }
 
 function Invoke-Menu {
+    # Pick a profile ONCE per run. compat.json currently ships one stack, but the day a
+    # second verified combo lands (new ROT / new game version), users just pick from a
+    # list - no tool changes needed.
+    $activeProfileId = $null
+    if (Test-Path $config) {
+        $allProfiles = @((Get-Content $config -Raw | ConvertFrom-Json).profiles)
+        if ($allProfiles.Count -gt 1) {
+            Show-Header
+            Write-Host ""
+            Write-Host "  This tool knows more than one verified mod stack:" -ForegroundColor Cyan
+            for ($i = 0; $i -lt $allProfiles.Count; $i++) { Write-Host "    $($i+1)) $($allProfiles[$i].name)" }
+            Write-Host ""
+            $pick = (Read-Host "  Which one are you setting up? (Enter = 1)").Trim()
+            $idx = if ($pick -match '^\d+$' -and [int]$pick -ge 1 -and [int]$pick -le $allProfiles.Count) { [int]$pick - 1 } else { 0 }
+            $activeProfileId = $allProfiles[$idx].id
+        } elseif ($allProfiles.Count -eq 1) {
+            $activeProfileId = $allProfiles[0].id
+        }
+    }
+
     while ($true) {
         Show-Header
         $g = Get-GameOrExplain
         if (-not $g) { return }
-        $prof0 = if (Test-Path $config) { Get-CompatProfile -ConfigPath $config } else { $null }
+        $prof0 = if ($activeProfileId) { Get-CompatProfile -ConfigPath $config -ProfileId $activeProfileId } else { $null }
         Show-Status $g $prof0
         Show-Recommendation $g $prof0
 
@@ -176,8 +208,8 @@ function Invoke-Menu {
             '4' {
                 Write-Host ""
                 Write-Host "  FIX DEPENDENCIES" -ForegroundColor Cyan
-                Write-Host "  This downloads the OFFICIAL Harmony, ButterLib, UIExtenderEx and MCM" -ForegroundColor Gray
-                Write-Host "  (the correct versions for ROT), and replaces any wrong 'stub' copies." -ForegroundColor Gray
+                Write-Host "  This downloads the OFFICIAL Harmony, ButterLib, UIExtenderEx, MCM and" -ForegroundColor Gray
+                Write-Host "  BLSE (the correct versions for ROT), and replaces any wrong 'stub' copies." -ForegroundColor Gray
                 Write-Host "  This is the #1 fix for the game looping forever on a new campaign." -ForegroundColor Gray
                 Write-Host ""
                 Write-Host "  Requirements: the game must be CLOSED, and you need an internet connection." -ForegroundColor DarkGray

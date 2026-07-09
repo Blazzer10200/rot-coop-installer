@@ -101,8 +101,9 @@ function Test-RotInstall {
         $cfg = Get-Content $Game.ConfigPath -Raw
         $orderIds = [regex]::Matches($cfg,'<Id>([^<]+)</Id>') | ForEach-Object { $_.Groups[1].Value }
         $selFalse = ([regex]::Matches($cfg,'<IsSelected>false</IsSelected>')).Count
-        # map ROT-Map -> ROT_Map for comparison
-        $want = $Prof.loadOrder
+        # only demand order entries for modules actually installed here (a solo player
+        # without BannerlordTogether shouldn't get flagged forever)
+        $want = @($Prof.loadOrder | Where-Object { Test-Path (Join-Path $mods $_) })
         $missingFromOrder = $want | Where-Object { $_ -notin $orderIds }
         if ($missingFromOrder) { Add 'Load order' 'FIXABLE' "missing/disabled: $($missingFromOrder -join ', ')" 'auto' }
         elseif ($selFalse -gt 0) { Add 'Load order' 'FIXABLE' "$selFalse module(s) disabled - re-enable" 'auto' }

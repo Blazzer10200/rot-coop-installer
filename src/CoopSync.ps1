@@ -12,7 +12,8 @@ function Export-CoopProfile {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] $Game,
-        [string] $OutFile = (Join-Path $env:USERPROFILE 'Desktop\my-coop-setup.txt')
+        # real Desktop via .NET - OneDrive redirects it away from USERPROFILE\Desktop
+        [string] $OutFile = (Join-Path ([Environment]::GetFolderPath('Desktop')) 'my-coop-setup.txt')
     )
     $mods = $Game.ModulesPath
     $entries = [System.Collections.Generic.List[object]]::new()
