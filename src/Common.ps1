@@ -49,9 +49,20 @@ function Get-RotVersion {
     $null
 }
 
+# Probe ROT.dll for the NavalDLC hard reference. Only the Warsails (8.x) build carries
+# it (its OnSubModuleLoad patches NavalDLC types); 7.x does not. Assembly reference names
+# sit in the .NET metadata as plain text, so a string scan of the DLL is reliable ground
+# truth when SubModule.xml can't tell us the edition.
+function Test-RotWarsailsDll {
+    param([Parameter(Mandatory)][string] $ModulesPath)
+    $dll = Join-Path $ModulesPath 'ROT-Core\bin\Win64_Shipping_Client\ROT.dll'
+    if (-not (Test-Path $dll)) { return $false }
+    [bool](Select-String -LiteralPath $dll -Pattern 'NavalDLC' -Quiet)
+}
+
 # Classify the installed ROT against the version the active profile supports.
 # Returns: Version (normalized, $null if ROT-Core absent), Edition
-# ('non-warsails' | 'warsails' | 'unknown'), SupportedVer, Match (bool).
+# ('non-warsails' | 'warsails' | 'unknown'), GameStamped, SupportedVer, Match (bool).
 function Get-RotEdition {
     param(
         [Parameter(Mandatory)][string] $ModulesPath,
@@ -59,14 +70,30 @@ function Get-RotEdition {
     )
     $v = Get-RotVersion -ModulesPath $ModulesPath
     $edition = 'unknown'
+    $gameStamped = $false
     if ($v -match '^(\d+)') {
-        if ([int]$Matches[1] -ge 8) { $edition = 'warsails' } else { $edition = 'non-warsails' }
+        $major = [int]$Matches[1]
+        if ($major -ge 8) { $edition = 'warsails' }
+        elseif ($major -ge 5) { $edition = 'non-warsails' }
+        else {
+            # Major < 5 is not a real ROT release number: some ROT uploads stamp the GAME
+            # version (e.g. v1.3.15.3) into SubModule.xml instead of the mod version
+            # (verified live 2026-07-09: the 7.1-for-1.3.15 file ships v1.3.15.3 while an
+            # 8.0.10 install carried its real version). The string can't identify the
+            # build, so fall back to the ROT.dll NavalDLC probe - the one difference that
+            # actually predicts the crash.
+            $gameStamped = $true
+            $edition = if (Test-RotWarsailsDll -ModulesPath $ModulesPath) { 'warsails' } else { 'non-warsails' }
+        }
     }
+    $isMatch = if ($gameStamped) { $edition -eq 'non-warsails' }
+               else { [bool]($v -and $v.StartsWith($WantVersion)) }
     [pscustomobject]@{
         Version      = $v
         Edition      = $edition
+        GameStamped  = $gameStamped
         SupportedVer = $WantVersion
-        Match        = [bool]($v -and $v.StartsWith($WantVersion))
+        Match        = $isMatch
     }
 }
 

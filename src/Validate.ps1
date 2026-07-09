@@ -81,7 +81,9 @@ function Test-RotInstall {
         if (-not $ed.Version) {
             Add 'ROT version' 'MISSING' 'ROT-Core not installed - cannot read version' 'manual'
         } elseif ($ed.Match) {
-            Add 'ROT version' 'OK' "v$($ed.Version) (matches profile $($Prof.mods.ROT.version))" 'none'
+            $okMsg = if ($ed.GameStamped) { "non-Warsails build confirmed via ROT.dll probe (SubModule.xml stamps the game version, v$($ed.Version), not the mod version)" }
+                     else { "v$($ed.Version) (matches profile $($Prof.mods.ROT.version))" }
+            Add 'ROT version' 'OK' $okMsg 'none'
         } elseif ($ed.Edition -eq 'warsails') {
             Add 'ROT version' 'BROKEN' "v$($ed.Version) is the WARSAILS build - needs the War Sails DLC and can't co-op with a $($Prof.mods.ROT.version) host; install ROT $($Prof.mods.ROT.version) (non-Warsails)" 'manual'
         } else {

@@ -51,7 +51,7 @@ function Invoke-Preflight {
         $ed = Get-RotEdition -ModulesPath $Game.ModulesPath -WantVersion $wantRot
         $navalPresent = Test-Path (Join-Path $Game.ModulesPath (Get-WarSailsModuleName))
         if ($ed.Match) {
-            Chk "ROT version is $wantRot" $true "OK (v$($ed.Version))"
+            Chk "ROT version is $wantRot" $true $(if ($ed.GameStamped) { "OK - non-Warsails confirmed via ROT.dll (v$($ed.Version) is the game-version stamp)" } else { "OK (v$($ed.Version))" })
         } elseif ($ed.Edition -eq 'warsails' -and -not $navalPresent) {
             Chk "ROT version is $wantRot" $false "you have ROT v$($ed.Version) - the WARSAILS build - without the War Sails DLC. The game WILL crash before the menu. Install ROT $wantRot (non-Warsails) instead."
         } elseif ($ed.Edition -eq 'warsails') {

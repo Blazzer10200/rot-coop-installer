@@ -16,10 +16,11 @@
           "source": "https://www.nexusmods.com/mountandblade2bannerlord/mods/2907",
           "altSource": "https://www.moddb.com/mods/realm-of-thrones/downloads",
           "install": "manual-extract",
-          "notes": "Use the 'ROT 7.1 for Bannerlord 1.3.15' file. NOT 8.0 Warsails. Extract w/ 7-Zip. Folder ROT-Map must be renamed to ROT_Map (its internal Id)."
+          "notes": "Use the 'ROT 7.1 for Bannerlord 1.3.15' file. NOT 8.0 Warsails. Extract w/ 7-Zip. Folder ROT-Map must be renamed to ROT_Map (its internal Id). QUIRK (verified 2026-07-09): this build stamps the GAME version (v1.3.15.3) into SubModule.xml instead of the mod version, so version strings can't identify the build - the tool verifies the edition via the ROT.dll NavalDLC probe (Warsails-only reference) instead."
         },
         "BannerlordTogether": {
-          "version": "0.4.1.2",
+          "version": "0.4.1.4",
+          "_versionNote": "0.4.1.4 installed 2026-07-09 (newest Nexus build); 0.4.1.2 was the previously verified one. Co-op requires both players on the SAME version - whatever it is.",
           "modules": ["BannerlordTogether"],
           "source": "https://www.nexusmods.com/mountandblade2bannerlord/mods/10426",
           "install": "extract-to-modules",

@@ -71,9 +71,10 @@ function Show-Status($g, $prof) {
     if ($prof -and $prof.mods.ROT.version) { $wantRot = [string]$prof.mods.ROT.version }
     if ($g.RotVersion) {
         $ed = Get-RotEdition -ModulesPath $g.ModulesPath -WantVersion $wantRot
-        if ($ed.Match)                        { Write-Host "  ROT:          v$($ed.Version)  (correct build)" -ForegroundColor Green }
-        elseif ($ed.Edition -eq 'warsails')   { Write-Host "  ROT:          v$($ed.Version)  -- WARSAILS build! This setup needs ROT $wantRot (non-Warsails)" -ForegroundColor Red }
-        else                                  { Write-Host "  ROT:          v$($ed.Version)  -- expected $wantRot" -ForegroundColor Yellow }
+        $rotLabel = if ($ed.GameStamped) { "non-Warsails (v$($ed.Version) = game-version stamp; edition read from ROT.dll)" } else { "v$($ed.Version)" }
+        if ($ed.Match)                        { Write-Host "  ROT:          $rotLabel  (correct build)" -ForegroundColor Green }
+        elseif ($ed.Edition -eq 'warsails')   { Write-Host "  ROT:          $rotLabel  -- WARSAILS build! This setup needs ROT $wantRot (non-Warsails)" -ForegroundColor Red }
+        else                                  { Write-Host "  ROT:          $rotLabel  -- expected $wantRot" -ForegroundColor Yellow }
     } else { Write-Host "  ROT:          not installed yet" -ForegroundColor Yellow }
 }
 
