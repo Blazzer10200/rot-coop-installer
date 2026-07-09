@@ -32,6 +32,7 @@ English - so you don't have to know which option to pick. Then:
 | **7) Co-op: match with a friend** | Host exports their exact setup to a file; friend compares and the tool reports precisely what differs (missing mod / wrong version / stub deps). Kills the #1 co-op failure. |
 | **8) Watch the game load** | The friendly loading screen: smooth progress bar + a live "what it's doing now" activity log. Recognizes the healthy first-load (terrain building) and warns if it detects the endless loop. Only watches - never touches the game. |
 | **9) Technical details** | Raw detected info, for troubleshooting. |
+| **10) Read a crash report** | Point it at the `.zip` BLSE offers to save when the game dies (yours **or a friend's**) and it explains the crash in plain English + matches it against every known cause. No more eyeballing JSON. |
 
 ## What it does NOT do
 
@@ -72,6 +73,14 @@ English - so you don't have to know which option to pick. Then:
 - **`ROT-Map` folder vs `ROT_Map` internal Id** mismatch - detected and reported.
 - **Steam not running** -> "Unable to initialize Steam API" instant close - checked before launch.
 - **Wrong / incomplete dependencies** - the deep check catches "folder exists but the DLL isn't in bin."
+- **Wrong ROT build (8.x Warsails).** ROT 8.x hard-references the **War Sails DLC** (`NavalDLC`) at
+  startup: without the DLC it crashes with `FileNotFoundException: NavalDLC` **before the menu**, and
+  it can't co-op with a 7.1 host regardless. Every dependency can be perfect and it still dies -
+  which is exactly how it slipped past the old checks (real incident, 2026-07-09). The tool now reads
+  the installed ROT version everywhere: status header, preflight, deep check, and startup advice.
+- **Windows-blocked DLLs (Mark of the Web).** DLLs extracted from internet ZIPs carry a "blocked"
+  tag that stops .NET loading them -> "could not load file or assembly". Preflight detects them;
+  Fix common problems unblocks them all in one pass.
 
 ## Project layout
 
@@ -90,6 +99,7 @@ src/
   ProgressReader.ps1   live loading screen (bar + activity log)
   Launch.ps1           one-click PLAY (preflight -> launch -> watch)
   CoopSync.ps1         export / compare setups between co-op partners
+  CrashReport.ps1      read a BLSE crash report zip + explain it (matches known causes)
 config/
   compat.json          version-compat map + known crashes (keep this updated)
 docs/
@@ -107,6 +117,9 @@ docs/
 - [x] One-click PLAY (preflight -> launch -> watch)
 - [x] Co-op setup export / compare + how-to-start-co-op guide
 - [x] **Verified end-to-end on a real machine: solo + co-op both confirmed working**
+- [x] ROT build/edition detection (8.x Warsails vs 7.1) - closes the gap a real crash exposed
+- [x] Windows-blocked-DLL (Mark of the Web) detection + one-click unblock
+- [x] Crash-report reader: drop in a BLSE `.zip`, get a plain-English diagnosis
 - [ ] Guided install flow for the mods themselves (point at ROT/BLSE archives -> auto-place)
 - [ ] Package as a single `.exe` (ps2exe)
 - [ ] WPF GUI

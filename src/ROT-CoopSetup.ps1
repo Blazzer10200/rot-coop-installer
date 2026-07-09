@@ -30,6 +30,7 @@ $config = Join-Path (Split-Path $here -Parent) 'config\compat.json'
 . "$here\ProgressReader.ps1"
 . "$here\Launch.ps1"
 . "$here\CoopSync.ps1"
+. "$here\CrashReport.ps1"
 
 function Show-Header {
     Write-Host ""
@@ -56,14 +57,24 @@ function Get-GameOrExplain {
     $g
 }
 
-function Show-Status($g) {
+function Show-Status($g, $prof) {
     $verOk = $g.VersionNorm -match '^1\.3\.15'
     Write-Host ""
     Write-Host "  Game folder:  $($g.Path)" -ForegroundColor Gray
     if ($verOk) { Write-Host "  Version:      $($g.Version)  (correct for co-op)" -ForegroundColor Green }
     else        { Write-Host "  Version:      $($g.Version)  -- you need 1.3.15 (Steam > right-click game > Properties > Betas)" -ForegroundColor Yellow }
-    if ($g.WarSails) { Write-Host "  War Sails:    ON  -- turn it OFF for co-op (Properties > DLC)" -ForegroundColor Yellow }
-    else             { Write-Host "  War Sails:    off (correct)" -ForegroundColor Green }
+    if ($g.WarSailsEnabled) { Write-Host "  War Sails:    ENABLED  -- turn it OFF for co-op (launcher Mods tab / Properties > DLC)" -ForegroundColor Yellow }
+    elseif ($g.WarSails)    { Write-Host "  War Sails:    installed but off (fine)" -ForegroundColor Green }
+    else                    { Write-Host "  War Sails:    off (correct)" -ForegroundColor Green }
+    # ROT build - THE line that would have caught the ROT-8.0-without-DLC crash at a glance
+    $wantRot = '7.1'
+    if ($prof -and $prof.mods.ROT.version) { $wantRot = [string]$prof.mods.ROT.version }
+    if ($g.RotVersion) {
+        $ed = Get-RotEdition -ModulesPath $g.ModulesPath -WantVersion $wantRot
+        if ($ed.Match)                        { Write-Host "  ROT:          v$($ed.Version)  (correct build)" -ForegroundColor Green }
+        elseif ($ed.Edition -eq 'warsails')   { Write-Host "  ROT:          v$($ed.Version)  -- WARSAILS build! This setup needs ROT $wantRot (non-Warsails)" -ForegroundColor Red }
+        else                                  { Write-Host "  ROT:          v$($ed.Version)  -- expected $wantRot" -ForegroundColor Yellow }
+    } else { Write-Host "  ROT:          not installed yet" -ForegroundColor Yellow }
 }
 
 # Quick health scan -> tell the user the ONE thing to do next, in plain English.
@@ -86,6 +97,16 @@ function Show-Recommendation($g, $prof) {
         Write-Host "  >> START HERE: Realm of Thrones isn't installed yet ($rotCount/4 modules found)." -ForegroundColor Yellow
         Write-Host "     Install ROT 7.1 into your Modules folder, then pick option 3 to check it." -ForegroundColor Yellow
     }
+    elseif ($g.RotVersion -and -not (Get-RotEdition -ModulesPath $mods -WantVersion $(if ($prof -and $prof.mods.ROT.version) { [string]$prof.mods.ROT.version } else { '7.1' })).Match) {
+        $wantRot = if ($prof -and $prof.mods.ROT.version) { [string]$prof.mods.ROT.version } else { '7.1' }
+        $edn = Get-RotEdition -ModulesPath $mods -WantVersion $wantRot
+        Write-Host "  >> START HERE: you installed ROT v$($edn.Version) - the WRONG build for this setup." -ForegroundColor Yellow
+        if ($edn.Edition -eq 'warsails') {
+            Write-Host "     That's the Warsails edition: without the War Sails DLC it crashes before the" -ForegroundColor Yellow
+            Write-Host "     menu even appears, and it can't co-op with a $wantRot host either way." -ForegroundColor Yellow
+        }
+        Write-Host "     Install ROT $wantRot (the 'ROT $wantRot for Bannerlord 1.3.15' file), then option 3 to re-check." -ForegroundColor Yellow
+    }
     elseif (-not $blse) {
         Write-Host "  >> START HERE: BLSE (the launcher ROT needs) isn't installed. Pick option 3" -ForegroundColor Yellow
         Write-Host "     for the download link, install it, then come back." -ForegroundColor Yellow
@@ -107,8 +128,8 @@ function Invoke-Menu {
         Show-Header
         $g = Get-GameOrExplain
         if (-not $g) { return }
-        Show-Status $g
         $prof0 = if (Test-Path $config) { Get-CompatProfile -ConfigPath $config } else { $null }
+        Show-Status $g $prof0
         Show-Recommendation $g $prof0
 
         Write-Host ""
@@ -130,6 +151,7 @@ function Invoke-Menu {
         Write-Host "   OTHER" -ForegroundColor DarkGray
         Write-Host "    8) Watch the game load  (friendly loading screen)"
         Write-Host "    9) Show technical details"
+        Write-Host "   10) Read a crash report  (the .zip BLSE offers to save when the game dies)"
         Write-Host "    Q) Quit"
         Write-Host ""
         $c = (Read-Host "  Type a number and press Enter").Trim().ToUpper()
@@ -195,8 +217,18 @@ function Invoke-Menu {
             }
             '8' { Watch-BannerlordLoad }
             '9' { $g | Format-List; Pause-Return }
+            '10' {
+                Write-Host ""
+                Write-Host "  When Bannerlord crashes through BLSE, it shows a dialog with a 'Save report'" -ForegroundColor Gray
+                Write-Host "  button. This reads that report (yours or a friend's) and explains the crash." -ForegroundColor Gray
+                Write-Host ""
+                $cp = (Read-Host "  Drag the crash report .zip here (or paste its path)").Trim('"',' ')
+                $rep = Read-CrashReport -Path $cp
+                if ($rep) { Show-CrashDiagnosis -Report $rep }
+                Pause-Return
+            }
             'Q' { Write-Host ""; return }
-            default { Write-Host "  Please type 1-9 or Q." -ForegroundColor Yellow; Start-Sleep 1 }
+            default { Write-Host "  Please type 1-10 or Q." -ForegroundColor Yellow; Start-Sleep 1 }
         }
     }
 }

@@ -40,21 +40,38 @@ function Find-Bannerlord {
     } else { 'unknown' }
     $versionNorm = $version -replace '^[ve]', ''   # strip v/e prefix for comparison
 
-    # 3) War Sails DLC: detect the actual DLC module folder (not the always-present Multiplayer).
-    #    War Sails ships module folders like "Warsails" / "SailingShips" - probe common names.
-    $warSailsFolders = @('Warsails','WarSails','SailingShips','Naval') |
+    # 3) War Sails DLC. The DLC's real module folder is 'NavalDLC' (assembly NavalDLC.dll -
+    #    verified from a live BLSE crash report). The old guess-list ('Warsails',
+    #    'SailingShips', 'Naval') never matched it, so War Sails detection NEVER fired.
+    #    Old names kept as fallbacks in case a future build renames the folder.
+    $warSailsFolders = @((Get-WarSailsModuleName),'Warsails','WarSails','SailingShips') |
         Where-Object { Test-Path (Join-Path $game "Modules\$_") }
     $warSails = [bool]$warSailsFolders
 
+    # installed != enabled. Co-op only breaks when the DLC module is ENABLED in the
+    # launcher; owning it with the toggle off is fine. Read LauncherData for the state.
+    $configPath = Join-Path ([Environment]::GetFolderPath('MyDocuments')) "Mount and Blade II Bannerlord\Configs\LauncherData.xml"
+    $warSailsEnabled = $false
+    if ($warSails -and (Test-Path $configPath)) {
+        $cfgRaw = Get-Content $configPath -Raw
+        $m = [regex]::Match($cfgRaw, "<Id>$(Get-WarSailsModuleName)</Id>.*?<IsSelected>(true|false)</IsSelected>", 'Singleline')
+        if ($m.Success) { $warSailsEnabled = ($m.Groups[1].Value -eq 'true') }
+        else { $warSailsEnabled = $warSails }   # installed but never seen by launcher: assume it'll load
+    } elseif ($warSails) {
+        $warSailsEnabled = $true                 # no launcher config to say otherwise
+    }
+
     [pscustomobject]@{
-        Found        = $true
-        Path         = $game
-        ModulesPath  = Join-Path $game "Modules"
-        BinPath      = Join-Path $game "bin\Win64_Shipping_Client"
-        Version      = $version
-        VersionNorm  = $versionNorm
-        WarSails     = $warSails
-        ConfigPath   = Join-Path ([Environment]::GetFolderPath('MyDocuments')) "Mount and Blade II Bannerlord\Configs\LauncherData.xml"
-        ProgramData  = (Get-BannerlordProgramData)
+        Found           = $true
+        Path            = $game
+        ModulesPath     = Join-Path $game "Modules"
+        BinPath         = Join-Path $game "bin\Win64_Shipping_Client"
+        Version         = $version
+        VersionNorm     = $versionNorm
+        WarSails        = $warSails
+        WarSailsEnabled = $warSailsEnabled
+        RotVersion      = (Get-RotVersion -ModulesPath (Join-Path $game "Modules"))
+        ConfigPath      = $configPath
+        ProgramData     = (Get-BannerlordProgramData)
     }
 }

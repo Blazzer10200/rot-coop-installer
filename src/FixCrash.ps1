@@ -49,6 +49,13 @@ function Repair-RotInstall {
     foreach ($m in $markers) { if ([System.IO.File]::Exists($m)) { [System.IO.File]::Delete($m); $mCount++ } }
     $report.Add("Crash markers cleared: $mCount (prevents spurious safe-mode prompt)")
 
+    # --- FIX 4: unblock Windows-blocked DLLs (Mark of the Web) ---
+    # DLLs extracted from internet ZIPs keep a Zone.Identifier tag; .NET refuses to load
+    # them -> "could not load file or assembly" crashes. Unblock-File clears the tag.
+    $blocked = @(Get-BlockedModDlls -Game $Game)
+    foreach ($b in $blocked) { Unblock-File -LiteralPath $b -ErrorAction SilentlyContinue }
+    $report.Add("Windows-blocked DLLs unblocked: $($blocked.Count)$(if($blocked.Count){' (the downloaded-from-internet tag stopped .NET loading them)'})")
+
     # --- FIX 5: repair ROT's malformed string XML (THE INFINITE-LOOP FIX) ---
     # ROT 7.1 ships GameText string files with DUPLICATE <string id="..."> entries and a
     # couple of empty <tag/> elements. These violate the engine's GameText.xsd schema

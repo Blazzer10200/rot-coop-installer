@@ -31,6 +31,71 @@ function Get-StubDeps {
     Get-CoreDepModules | Where-Object { Test-IsStubDep (Join-Path $ModulesPath $_) }
 }
 
+# ---- ROT version / edition ----
+# ROT ships two very different builds for Bannerlord 1.3.15:
+#   7.x = the non-Warsails build (what this tool's co-op stack is verified on)
+#   8.x = the WARSAILS edition - its OnSubModuleLoad Harmony-patches NavalDLC types, a
+#         hard reference to the War Sails DLC assembly. Without the DLC installed the
+#         game dies on FileNotFoundException('NavalDLC') before the menu even appears
+#         (verified from a real BLSE crash report, 2026-07-09).
+# The old detection never read the ROT version at all: modules present + official deps
+# all passed GO on a setup that was guaranteed to crash. These helpers close that gap.
+function Get-RotVersion {
+    param([Parameter(Mandatory)][string] $ModulesPath)
+    $xml = Join-Path $ModulesPath 'ROT-Core\SubModule.xml'
+    if (-not (Test-Path $xml)) { return $null }
+    $v = ([regex]::Match((Get-Content $xml -Raw), '<Version\s*value\s*=\s*"([^"]+)"')).Groups[1].Value
+    if ($v) { return ($v -replace '^[ve]','') }
+    $null
+}
+
+# Classify the installed ROT against the version the active profile supports.
+# Returns: Version (normalized, $null if ROT-Core absent), Edition
+# ('non-warsails' | 'warsails' | 'unknown'), SupportedVer, Match (bool).
+function Get-RotEdition {
+    param(
+        [Parameter(Mandatory)][string] $ModulesPath,
+        [string] $WantVersion = '7.1'
+    )
+    $v = Get-RotVersion -ModulesPath $ModulesPath
+    $edition = 'unknown'
+    if ($v -match '^(\d+)') {
+        if ([int]$Matches[1] -ge 8) { $edition = 'warsails' } else { $edition = 'non-warsails' }
+    }
+    [pscustomobject]@{
+        Version      = $v
+        Edition      = $edition
+        SupportedVer = $WantVersion
+        Match        = [bool]($v -and $v.StartsWith($WantVersion))
+    }
+}
+
+# The War Sails DLC's module folder / assembly name (NavalDLC.dll).
+function Get-WarSailsModuleName { 'NavalDLC' }
+
+# ---- Windows-blocked DLLs (Mark of the Web) ----
+# Files extracted from internet ZIPs carry a Zone.Identifier stream; .NET refuses to
+# load a tagged DLL -> assorted "could not load file or assembly" crashes. This is the
+# ROT FAQ's #1 fix ("unblock the DLL"), so the tool detects it (and repair unblocks).
+function Get-BlockedModDlls {
+    param([Parameter(Mandatory)] $Game)
+    $roots = [System.Collections.Generic.List[string]]::new()
+    foreach ($m in ((Get-RotModuleNames) + (Get-CoreDepModules) + @('BannerlordTogether'))) {
+        $b = Join-Path $Game.ModulesPath "$m\bin\Win64_Shipping_Client"
+        if (Test-Path $b) { $roots.Add($b) }
+    }
+    if (Test-Path $Game.BinPath) { $roots.Add($Game.BinPath) }   # BLSE lands here
+    $blocked = [System.Collections.Generic.List[string]]::new()
+    foreach ($r in $roots) {
+        foreach ($dll in (Get-ChildItem $r -Filter *.dll -ErrorAction SilentlyContinue)) {
+            if (Get-Item -LiteralPath $dll.FullName -Stream Zone.Identifier -ErrorAction SilentlyContinue) {
+                $blocked.Add($dll.FullName)
+            }
+        }
+    }
+    $blocked
+}
+
 # The ROT shader-cache files whose staleness causes the 0xC0000005 crash.
 function Get-ShaderCachePaths {
     param([Parameter(Mandatory)][string] $ModulesPath)
